@@ -40,10 +40,29 @@ class Game:
         self.loader.load_animation("player_run_stop", "assets/sprite/player_run_stop")
         self.loader.load_animation("player_run_back", "assets/sprite/player_run_back")
         self.loader.load_animation("player_down", "assets/sprite/player_down")
+        self.loader.load_animation("arrow_ring_sprite", "assets/sprite/arrow_ring_sprite")
+        self.loader.load_animation("player_jump_effect", "assets/sprite/player_jump_effect")
+        self.loader.load_animation("bullet_effect_sprite2", "assets/sprite/bullet_effect_sprite2")
+        self.loader.load_animation("bullet_effect_sprite3", "assets/sprite/bullet_effect_sprite3")
+        self.loader.load_animation("player_action1", "assets/sprite/player_action")
+        self.loader.load_animation("player_action2", "assets/sprite/player_action2")
+        self.loader.load_animation("player_action3", "assets/sprite/player_action3")
+        self.loader.load_animation("player_action4", "assets/sprite/player_action4")
+        self.loader.load_animation("player_run_attack1", "assets/sprite/player_run_attack2")
+        self.loader.load_animation("player_run_attack2", "assets/sprite/player_run_attack")
+        self.loader.load_animation("player_run_attack3", "assets/sprite/player_run_attack3")
+        self.loader.load_animation("player_run_attack4", "assets/sprite/player_run_attack4")
+        self.loader.load_animation("player_jump_attack", "assets/sprite/player_jump_attack")
+        self.loader.load_animation("player_up_shot","assets/sprite/player_up_shot")
+        self.loader.load_animation("player_up_shot2","assets/sprite/player_up_shot2")
+        self.loader.load_animation("player_up_shot_run","assets/sprite/player_up_shot_run")
+        self.loader.load_animation("player_up_shot_air","assets/sprite/player_up_shot_air")
+        self.loader.load_animation("player_under_attack","assets/sprite/player_under_attack")
+        self.loader.load_animation("player_sliding","assets/sprite/player_sliding")
 
         # sounds
 
-        # wisp
+        # enemies
         self.loader.load_animation(
             "wisp",
             "assets/sprite/will_o_wisp_sprite"
