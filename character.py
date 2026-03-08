@@ -4,6 +4,7 @@
 import pygame
 from pygame.locals import *
 from settings import *
+import random
 
 class Character:
     def __init__(self, loader):
@@ -14,7 +15,8 @@ class Character:
             "right": K_d,
             "up": K_w,
             "down": K_s,
-            "dash": K_q
+            "dash": K_LSHIFT,
+            "attack": K_j
         }
 
         #stats
@@ -40,10 +42,16 @@ class Character:
         self._wasMoving = False
         self._crouching = False
 
+        # dash placeholder    
         self._dashCD = 0.0
         self._dashCDStat = PLAYER_DASHCOOLDOWN
         self._dash = False
         self._dashSpeed = PLAYER_DASHSPEED
+
+        self.player_sliding = False
+        self.slide_timer = 0
+        self.slide_duration = PLAYER_SLIDE_DURATION
+        self.slide_speed = PLAYER_SLIDE_SPEED
 
         # sprite
         self.animations = {
@@ -56,8 +64,35 @@ class Character:
             "run_start": loader.get_animation("player_run_start"),
             "run_stop": loader.get_animation("player_run_stop"),
             "run_back": loader.get_animation("player_run_back"),
-            "crouch": loader.get_animation("player_down")
+            "crouch": loader.get_animation("player_down"),
+            "action1": loader.get_animation("player_action1"),
+            "action2": trim_right(loader.get_animation("player_action2"),32),
+            "action3": trim_right(loader.get_animation("player_action3"),32),
+            "action4": trim_right(loader.get_animation("player_action4"),35),
+            "run_attack1": trim_right(loader.get_animation("player_run_attack1"),0),
+            "run_attack2": trim_right(loader.get_animation("player_run_attack2"),32),
+            "run_attack3": trim_right(loader.get_animation("player_run_attack3"),32),
+            "run_attack4": trim_right(loader.get_animation("player_run_attack4"),32),
+            "jump_attack": loader.get_animation("player_jump_attack"),
+            "up_shot": loader.get_animation("player_up_shot"),
+            "up_shot2": loader.get_animation("player_up_shot2"),
+            "up_shot_air": loader.get_animation("player_up_shot_air"),
+            "up_shot_run": loader.get_animation("player_up_shot_run"),
+            "under_attack": loader.get_animation("player_under_attack"),
+            "slide": loader.get_animation("player_sliding"),
         }
+
+        self.double_jump_effects = []
+        self.arrow_ring_sprite = loader.get_animation("arrow_ring_sprite")
+        self.double_jump_effect_sprite = self.jump_effect_frames = loader.get_animation("player_jump_effect")
+        self.bullet_effect_sprites = [
+            loader.get_animation("bullet_effect_sprite2"),
+            loader.get_animation("bullet_effect_sprite3")
+        ]
+        self.double_jump_trail_active = False
+        self.trail_spawned = 0
+        self.trail_timer = 0
+        self.trail_interval = 0.05
 
         self.current_anim = "idle"
         self.frames = self.animations[self.current_anim]
@@ -82,20 +117,35 @@ class Character:
         self._maxGlideFallSpeed = 120
         self._jumpHeld = False          
 
+        # attack
+        self.attack_frame_speed = 0.045
+        self._attackPressedLastFrame = False
+        self._attackQueued = False
+        self._attacking = False
+        self._upShotQueued = False
+        self._upShotStage = 0
+
+        self._comboIndex = 0
+
+        self._comboSequence = [1,2,3,4]
+
     # -----------------------
     # INPUT
     # -----------------------
 
     def handleInput(self, keys):
+        if self.player_sliding:
+            return
 
         # crouch input (only allowed on ground)
-        self._crouching = keys[K_s] and self._grounded
+        self._crouching = keys[K_s] and self._grounded and not self.player_sliding
 
         # horizontal input
         self._inputDir = (keys[K_d] - keys[K_a])
+        self._inputDown = keys[self._keys["down"]]
 
         # prevent movement while crouching
-        if self._crouching:
+        if self._crouching or self.player_sliding:
             self._vel.x = 0
         else:
             self._vel.x = self._inputDir * self._moveSpeed
@@ -114,6 +164,26 @@ class Character:
             self._curJumpHold = 0
 
         self._jumpPressedLastFrame = jumpPressed
+
+        # attack
+        attackPressed = keys[K_j]
+        attackJustPressed = attackPressed and not self._attackPressedLastFrame
+        upPressed = keys[K_w]
+
+        if attackJustPressed:
+
+            if upPressed:
+                if not self._attacking:
+                    self.start_up_shot()
+                else:
+                    self._upShotQueued = True
+            else:
+                if not self._attacking:
+                    self.start_attack()
+                else:
+                    self._attackQueued = True
+
+        self._attackPressedLastFrame = attackPressed
 
     # -----------------------
     # ANIMATION SWITCHING
@@ -148,9 +218,25 @@ class Character:
             self._dashCD -= dt
 
         # execute buffered jump if possible
-        if self._jumpBufferTimer > 0 and not self._crouching: # Remove later when couch+jump allows sliding
+        if self._jumpBufferTimer > 0: # Remove later when couch+jump allows sliding
 
             if self._grounded:
+
+                if self._inputDown and not self.player_sliding:
+
+                    if self._inputDir != 0:
+                        self._facingRight = self._inputDir > 0
+
+                    # cancel attack
+                    self._attacking = False
+                    self._attackQueued = False
+                    self._upShotQueued = False
+                    self._comboIndex = 0
+
+                    self.player_sliding = True
+                    self.slide_timer = self.slide_duration
+                    self._jumpBufferTimer = 0
+                    return
 
                 self._vel.y = -self._jumpforce
                 self._jumpMaxHold = self._jumpholdDuration
@@ -171,9 +257,46 @@ class Character:
                 self._jumpTimes = 2
                 self._jumpHolding = True
 
+                self.double_jump_trail_active = True
+                self.trail_spawned = 0
+                self.trail_timer = 0
+
+                frames = self.arrow_ring_sprite
+                effect = {
+                    "frames": frames,
+                    "frame": 0,
+                    "timer": 0,
+                    "speed": 0.015,
+                    "scale": 0.8,
+                    "x": int(self._pos.x + self._rect.width / 2),
+                    "y": int(self._pos.y + self._rect.height + 4),
+                    "lifetime": len(frames) * 0.015,
+                    "rotate": 90
+                }
+                self.double_jump_effects.append(effect)
+
                 self._jumpBufferTimer = 0
 
         self.frame_timer += dt
+
+        # slide
+        if self.player_sliding:
+
+            self.slide_timer -= dt
+
+            direction = 1 if self._facingRight else -1
+            self._vel.x = direction * self.slide_speed
+
+            if self.slide_timer <= 0:
+                self.player_sliding = False
+
+                # execute buffered jump after slide ends
+                if self._jumpBufferTimer > 0:
+                    self._vel.y = -self._jumpforce
+                    self._jumpHolding = True
+                    self._grounded = False
+                    self._jumpTimes = 1
+                    self._jumpBufferTimer = 0
 
         # glide detection
         self._gliding = False
@@ -202,6 +325,39 @@ class Character:
         if not self._jumpHolding and self._vel.y < 0:
             self._vel.y = 0
 
+        # 2nd jump effect
+        if self.double_jump_trail_active:
+
+            self.trail_timer += dt
+
+            if self.trail_timer >= self.trail_interval:
+
+                self.trail_timer = 0
+
+                frames = self.double_jump_effect_sprite
+                scale = random.uniform(0.3, 0.6)
+
+                frame_speed = 0.015
+                lifetime = len(frames) * frame_speed
+
+                effect = {
+                    "frames": frames,
+                    "frame": 0,
+                    "timer": 0,
+                    "speed": 0.015,
+                    "scale": scale,
+                    "x": int(self._pos.x + self._rect.width / 2),
+                    "y": int(self._pos.y + self._rect.height),
+                    "lifetime": lifetime
+                }
+
+                self.double_jump_effects.append(effect)
+
+                self.trail_spawned += 1
+
+                if self.trail_spawned >= 4 or self._vel.y > 0:
+                    self.double_jump_trail_active = False
+
         # jump hold
         if self._jumpHolding:
             self._curJumpHold += dt
@@ -226,6 +382,23 @@ class Character:
 
         just_landed = not was_grounded and self._grounded
 
+        # convert ground attack into air attack if we leave the ground
+        if self._attacking and not self._grounded:
+            if self.current_anim.startswith(("action", "run_attack")):
+                if self._inputDown:
+                    self.set_animation("under_attack", True)
+                else:
+                    self.set_animation("jump_attack", True)
+        # convert air attack into ground attack when landing
+        if self._attacking and just_landed:
+            if self.current_anim in ("jump_attack", "under_attack"):
+                combo = self._comboSequence[self._comboIndex]
+                if abs(self._vel.x) > 0:
+                    anim = f"run_attack{combo}"
+                else:
+                    anim = f"action{combo}"
+                self.set_animation(anim, True)
+
         if not self._grounded:
             if self._inputDir > 0:
                 self._facingRight = True
@@ -233,61 +406,70 @@ class Character:
                 self._facingRight = False
 
         # state change
-        if just_landed:
-            if self._vel.x != 0:
-                self.set_animation("run")
-            else:
-                self.set_animation("idle")
-
-        elif self._gliding:
-            self.set_animation("glide")
-
-        elif self._crouching:
-            self.set_animation("crouch")
-
-        elif self._grounded:
-
-            isMoving = abs(self._vel.x) > 0
-
-            turning = False
-            if isMoving:
-                if self._inputDir > 0 and not self._facingRight:
-                    turning = True
-                elif self._inputDir < 0 and self._facingRight:
-                    turning = True
-
-            if turning:
-                    # flip immediately
-                if self._inputDir > 0:
-                    self._facingRight = True
-                elif self._inputDir < 0:
-                    self._facingRight = False
-                self.set_animation("run_back", True)
-
-            elif not self._wasMoving and isMoving:
-                self.set_animation("run_start")
-
-            elif self._wasMoving and not isMoving:
-                self.set_animation("run_stop")
-
-            elif isMoving:
-                if self.current_anim not in ("run_start", "run_stop", "run_back"):
+        if self._attacking and self._grounded:
+            if self._inputDir > 0:
+                self._facingRight = True
+            elif self._inputDir < 0:
+                self._facingRight = False
+        if not self._attacking:
+            if just_landed:
+                if self._vel.x != 0:
                     self.set_animation("run")
-
-            else:
-                if self.current_anim not in ("run_stop",):
+                else:
                     self.set_animation("idle")
 
-            self._wasMoving = isMoving
+            elif self._gliding:
+                self.set_animation("glide")
 
-        else:
-            if self._vel.y < 0:
-                if self._jumpTimes == 2:
-                    self.set_animation("double_jump")
+            elif self.player_sliding:
+                self.set_animation("slide")
+
+            elif self._crouching:
+                self.set_animation("crouch")
+
+            elif self._grounded:
+
+                isMoving = abs(self._vel.x) > 0
+
+                turning = False
+                if isMoving:
+                    if self._inputDir > 0 and not self._facingRight:
+                        turning = True
+                    elif self._inputDir < 0 and self._facingRight:
+                        turning = True
+
+                if turning:
+                        # flip immediately
+                    if self._inputDir > 0:
+                        self._facingRight = True
+                    elif self._inputDir < 0:
+                        self._facingRight = False
+                    self.set_animation("run_back", True)
+
+                elif not self._wasMoving and isMoving:
+                    self.set_animation("run_start")
+
+                elif self._wasMoving and not isMoving:
+                    self.set_animation("run_stop")
+
+                elif isMoving:
+                    if self.current_anim not in ("run_start", "run_stop", "run_back"):
+                        self.set_animation("run")
+
                 else:
-                    self.set_animation("jump")
+                    if self.current_anim not in ("run_stop",):
+                        self.set_animation("idle")
+
+                self._wasMoving = isMoving
+
             else:
-                self.set_animation("fall")
+                if self._vel.y < 0:
+                    if self._jumpTimes == 2:
+                        self.set_animation("double_jump")
+                    else:
+                        self.set_animation("jump")
+                else:
+                    self.set_animation("fall")
 
         # update animation frames
         if self.frame_timer >= self.frame_speed:
@@ -327,17 +509,118 @@ class Character:
                     self.set_animation("idle")
 
             elif self.current_anim == "run_back":
-
                 if self.frame_index < len(self.frames) - 1:
                     self.frame_index += 1
                 else:
                     self.set_animation("run")
+
+            elif (
+                self.current_anim.startswith(("action", "run_attack"))
+                or self.current_anim in ("jump_attack","under_attack","up_shot","up_shot2","up_shot_air","up_shot_run")
+            ):
+                if self.frame_index < len(self.frames) - 1:
+                    self.frame_index += 1
+
+                else:
+                    # under attack
+                    if self.current_anim == "under_attack":
+                        self._attacking = False
+                        self._comboIndex = 0
+                        self.frame_speed = 0.07
+
+                        if self._vel.y < 0:
+                            self.set_animation("jump")
+                        else:
+                            self.set_animation("fall")
+
+                    # jump attack never chains
+                    elif self.current_anim == "jump_attack":
+
+                        self._attacking = False
+                        self._comboIndex = 0
+                        self.frame_speed = 0.07
+
+                        if self._vel.y < 0:
+                            self.set_animation("jump")
+                        else:
+                            self.set_animation("fall")
+
+                    # standing up shot combo
+                    elif self.current_anim == "up_shot":
+
+                        if self._upShotQueued:
+                            self._upShotQueued = False
+                            self.set_animation("up_shot2", True)
+
+                        else:
+                            self._attacking = False
+                            self.frame_speed = 0.07
+                            self.set_animation("idle")
+
+                    # run/air up shot (single attack)
+                    elif self.current_anim in ("up_shot_air","up_shot_run"):
+
+                        self._attacking = False
+                        self.frame_speed = 0.07
+
+                        if not self._grounded:
+                            if self._vel.y < 0:
+                                self.set_animation("jump")
+                            else:
+                                self.set_animation("fall")
+                        elif abs(self._vel.x) > 0:
+                            self.set_animation("run")
+                        else:
+                            self.set_animation("idle")
+
+                    # ground combo logic
+                    elif self._attackQueued:
+
+                        self._attackQueued = False
+                        self._comboIndex = (self._comboIndex + 1) % len(self._comboSequence)
+
+                        combo = self._comboSequence[self._comboIndex]
+
+                        if abs(self._vel.x) > 0 and self._grounded:
+                            next_anim = f"run_attack{combo}"
+                        else:
+                            next_anim = f"action{combo}"
+
+                        self.set_animation(next_anim, True)
+
+                    else:
+
+                        self._attacking = False
+                        self._comboIndex = 0
+                        self.frame_speed = 0.07
+
+                        isMoving = abs(self._vel.x) > 0
+                        if isMoving:
+                            self.set_animation("run")
+                        elif self._wasMoving:
+                            # player stopped moving during the attack
+                            self.set_animation("run_stop")
+                        else:
+                            self.set_animation("idle")
+                        self._wasMoving = isMoving
 
             else:
                 # normal looping animation
                 self.frame_index = (self.frame_index + 1) % len(self.frames)
 
         self._image = self.frames[self.frame_index]
+
+        # 2nd jump effect
+        for effect in self.double_jump_effects[:]:
+
+            effect["timer"] += dt
+
+            if effect["timer"] >= effect["speed"]:
+                effect["timer"] = 0
+                effect["frame"] += 1
+
+            if effect["frame"] >= len(effect["frames"]):
+                self.double_jump_effects.remove(effect) 
 
         # sync rect AGAIN after collision fix
         self._rect.midtop = (int(self._pos.x), int(self._pos.y))
@@ -370,6 +653,7 @@ class Character:
     # -----------------------
     # DRAW
     # -----------------------
+
     def load(self):
         """Load character stats from saved progress"""
         pass
@@ -385,6 +669,79 @@ class Character:
         if not self._facingRight:
             image = pygame.transform.flip(self._image, True, False)
 
-        draw_rect = image.get_rect(midtop=self._rect.midtop)
+        draw_pos = self._rect.midtop
+
+        # offset taller up-shot sprites
+        if self.current_anim in ("up_shot", "up_shot2", "up_shot_air", "up_shot_run"):
+            draw_pos = (draw_pos[0], draw_pos[1] - 32)
+
+        draw_rect = image.get_rect(midtop=draw_pos)
 
         screen.blit(image, draw_rect)
+
+        for effect in self.double_jump_effects:
+
+            frame = effect["frames"][effect["frame"]]
+
+            # apply random scale
+            scale = effect["scale"]
+            new_size = (
+                int(frame.get_width() * scale),
+                int(frame.get_height() * scale)
+            )
+            frame = pygame.transform.scale(frame, new_size)
+
+            if "rotate" in effect:
+                frame = pygame.transform.rotate(frame, effect["rotate"])
+
+            rect = frame.get_rect(center=(effect["x"], effect["y"]))
+            screen.blit(frame, rect)
+
+    def start_attack(self):
+        self._attacking = True
+        combo = self._comboSequence[self._comboIndex]
+        if not self._grounded:
+            if self._inputDown:
+                anim = "under_attack"
+            else:
+                anim = "jump_attack"
+        elif abs(self._vel.x) > 0:
+            anim = f"run_attack{combo}"
+        else:
+            anim = f"action{combo}"
+        self.set_animation(anim, True)
+        self.frame_speed = self.attack_frame_speed
+
+    def start_up_shot(self):
+        self._attacking = True
+        self._upShotStage = 1
+        if not self._grounded:
+            anim = "up_shot_air"
+        elif abs(self._vel.x) > 0:
+            anim = "up_shot_run"
+        else:
+            anim = "up_shot"
+        self.set_animation(anim, True)
+        self.frame_speed = self.attack_frame_speed
+
+
+    # ------------------------
+    # HELPER
+    # ------------------------
+    
+def trim_right(frames, pixels):
+
+    trimmed = []
+
+    for frame in frames:
+
+        w = frame.get_width()
+        h = frame.get_height()
+
+        new_rect = pygame.Rect(0, 0, w - pixels, h)
+
+        trimmed_frame = frame.subsurface(new_rect).copy()
+
+        trimmed.append(trimmed_frame)
+
+    return trimmed
