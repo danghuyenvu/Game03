@@ -63,6 +63,7 @@ class Game:
         self.loader.load_animation("player_sliding","assets/sprite/player_sliding")
         self.loader.load_animation("player_time_stop", "assets/sprite/player_time_stop")
         self.loader.load_animation("player_time_stop_air", "assets/sprite/player_time_stop_air")
+        self.loader.load_animation("flying_knife", "assets/sprite/bullet_sprite3")
 
         self.loader.load_animation("crystal", "assets/sprite/crystal_sprite")
         self.loader.load_animation("big_bomb_effect", "assets/sprite/big_bomb_effect")
@@ -81,6 +82,11 @@ class Game:
         self.loader.load_animation("goblin_run", "assets/sprite/goblin_run_sprite")
         self.loader.load_animation("goblin_idle", "assets/sprite/goblin_sprite")
 
+        self.loader.load_animation("goblin_attack", "assets/sprite/goblin_attack_sprite")
+        self.loader.load_animation("goblin_run", "assets/sprite/goblin_run_sprite")
+        self.loader.load_animation("goblin_idle", "assets/sprite/goblin_sprite")
+
+        self.knives = []
         # music
         # self.loader.load_music("Luna_Dial", "assets/music/Lunar Clock Lunar Dial.ogg")
         # music_path = self.loader.get_music("Luna_Dial")
@@ -115,7 +121,7 @@ class Game:
         self.crystal = Crystal(self.loader, 1)
 
         # create entities AFTER assets exist
-        self.player = Character(self.loader)
+        self.player = Character(self.loader, self)
 
     # -----------------------
     # INPUT
@@ -143,6 +149,18 @@ class Game:
         self.goblin.update(dt, self.player._rect)
         self.crystal.update(dt)
 
+        for knife in self.knives:
+            knife.update(dt)
+
+        # remove dead knives
+        self.knives = [k for k in self.knives if k.alive]
+
+        for knife in self.knives:
+            knife.update(dt)
+
+        # remove dead knives
+        self.knives = [k for k in self.knives if k.alive]
+
     # -----------------------
     # COLLISION
     # -----------------------
@@ -164,6 +182,12 @@ class Game:
         self.wisp.draw(self._screen)
         self.goblin.draw(self._screen)
         self.crystal.draw(self._screen)
+
+        for knife in self.knives:
+            knife.draw(self._screen)
+
+        for knife in self.knives:
+            knife.draw(self._screen)
 
         scaled = pygame.transform.scale(
             self._screen,
