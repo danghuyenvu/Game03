@@ -5,10 +5,11 @@ import pygame
 from pygame.locals import *
 from settings import *
 from utils import *
+from knife import *
 import random
 
 class Character:
-    def __init__(self, loader):
+    def __init__(self, loader, game):
         #keyboard control
         self._keys = {
             "jump": K_SPACE,
@@ -20,6 +21,9 @@ class Character:
             "attack": K_j,          #also slows (implement later)
             "stop": K_k,
         }
+
+        self.game = game
+        self.loader = loader
 
         #stats
         self._pos = PLAYER_INIT_POS
@@ -92,10 +96,6 @@ class Character:
         self.double_jump_effects = []
         self.arrow_ring_sprite = loader.get_animation("arrow_ring_sprite")
         self.double_jump_effect_sprite = self.jump_effect_frames = loader.get_animation("player_jump_effect")
-        self.bullet_effect_sprites = [
-            loader.get_animation("bullet_effect_sprite2"),
-            loader.get_animation("bullet_effect_sprite3")
-        ]
         self.double_jump_trail_active = False
         self.trail_spawned = 0
         self.trail_timer = 0
@@ -131,6 +131,9 @@ class Character:
         self._attackQueued = False
         self._attacking = False
         self.attack_effects = []
+
+        self._knifeCooldown = 0
+        self._knifeCooldownTime = 0.30
 
         self._turnHoldTimer = 0.0
         self._turnHoldDuration = 0.35
@@ -236,6 +239,7 @@ class Character:
     # -----------------------
 
     def set_animation(self, name, restart=False):
+        self._knifeSpawned = False
 
         if self.current_anim != name or restart:
 
@@ -253,6 +257,9 @@ class Character:
     # -----------------------
 
     def update(self, dt):
+
+        if self._knifeCooldown > 0:
+            self._knifeCooldown -= dt
 
         # time stop freeze
         if self.time_stop:
@@ -627,6 +634,9 @@ class Character:
                 self.current_anim.startswith(("action", "run_attack"))
                 or self.current_anim in ("jump_attack","under_attack","up_shot","up_shot2","up_shot_air","up_shot_run")
             ):      
+                if self.frame_index >= 1 and not self._knifeSpawned and self._knifeCooldown <= 0:
+                    self.spawn_knives()
+                    self._knifeSpawned = True
                 if self.frame_index < len(self.frames) - 1:
                     self.frame_index += 1
 
@@ -888,3 +898,18 @@ class Character:
         self.frame_speed = self.time_stop_frame_speed
         frames = self.animations[anim]
         self.time_stop_timer = len(frames) * self.frame_speed
+
+    def spawn_knives(self):
+        self._knifeCooldown = self._knifeCooldownTime
+
+        direction = 1 if self._facingRight else -1
+
+        base_pos = self._rect.center
+
+        knives = [
+            Knife(base_pos, direction, self.loader, attack_type=self.current_anim, y_offset=-15, forward_offset=5),
+            Knife(base_pos, direction, self.loader, attack_type=self.current_anim, y_offset=0, forward_offset=15),
+            Knife(base_pos, direction, self.loader, attack_type=self.current_anim, y_offset=15, forward_offset=-5),
+        ]
+
+        self.game.knives.extend(knives)

@@ -61,6 +61,7 @@ class Game:
         self.loader.load_animation("player_sliding","assets/sprite/player_sliding")
         self.loader.load_animation("player_time_stop", "assets/sprite/player_time_stop")
         self.loader.load_animation("player_time_stop_air", "assets/sprite/player_time_stop_air")
+        self.loader.load_animation("flying_knife", "assets/sprite/bullet_sprite3")
 
         # sounds
 
@@ -70,6 +71,7 @@ class Game:
             "assets/sprite/will_o_wisp_sprite"
         )
 
+        self.knives = []
         # music
         # self.loader.load_music("Luna_Dial", "assets/music/Lunar Clock Lunar Dial.ogg")
         # music_path = self.loader.get_music("Luna_Dial")
@@ -101,7 +103,7 @@ class Game:
         self.wisp_frames = self.loader.get_animation("wisp")
 
         # create entities AFTER assets exist
-        self.player = Character(self.loader)
+        self.player = Character(self.loader, self)
 
     # -----------------------
     # INPUT
@@ -126,6 +128,12 @@ class Game:
 
         self.player.update(dt)
 
+        for knife in self.knives:
+            knife.update(dt)
+
+        # remove dead knives
+        self.knives = [k for k in self.knives if k.alive]
+
     # -----------------------
     # COLLISION
     # -----------------------
@@ -143,6 +151,9 @@ class Game:
         self._screen.fill(COLOR_BLACK)
 
         self.player.draw(self._screen)
+
+        for knife in self.knives:
+            knife.draw(self._screen)
 
         scaled = pygame.transform.scale(
             self._screen,
