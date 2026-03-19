@@ -39,6 +39,16 @@ class Character:
         self._jumpBufferTime = 0.12     # seconds allowed to buffer
         self._jumpBufferTimer = 0
 
+        # HP
+        self.hp = 100
+        self.hp_max = 100
+
+        # MP
+        self.mp = 100
+        self.mp_max = 100
+        self.mp_regen_rate = 3.0
+        self.mp_attack_cost = 5.0
+
         # state
         self._jumpTimes = 0
         self._grounded = True
@@ -188,6 +198,14 @@ class Character:
 
         self._moving_timer = 0.0 
 
+        # time stop efect
+        self.time_stop_wave_active = False
+        self.time_stop_wave_timer = 0.0
+        self.time_stop_wave_duration = 0.4 
+        self.time_stop_wave_max_radius = 1000 
+
+        self.time_stop_wave_reverse = False 
+
     # -----------------------
     # INPUT
     # -----------------------
@@ -244,12 +262,10 @@ class Character:
         attackJustPressed = attackPressed and not self._attackPressedLastFrame
 
         if attackJustPressed and not self._attacking:
-            if self.time_stop:
-                self.time_energy -= self.time_attack_cost
-                if self.time_energy <= 0:
-                    self.time_energy = 0
-                    self.time_stop = False
-                    self.game.time_stop = False
+            if not self.can_pay_attack_cost():
+                return
+            self.pay_attack_cost()            
+
             if not self._grounded:
                 if self._inputUp:
                     self.start_attack("air_up")
@@ -268,7 +284,8 @@ class Character:
                     self.start_attack("ground")
 
         elif attackJustPressed:
-            self._attackQueued = True
+            if self.can_pay_attack_cost():
+                self._attackQueued = True
 
         self._attackPressedLastFrame = attackPressed
 
@@ -299,8 +316,21 @@ class Character:
         if self.time_stop_toggle_lock > 0:
             self.time_stop_toggle_lock -= dt
 
+        # MP regen
+        self.mp += self.mp_regen_rate * dt
+        if self.mp > self.mp_max:
+            self.mp = self.mp_max
+
         if self._knifeCooldown > 0:
             self._knifeCooldown -= dt
+
+        # time stop wave update
+        if self.time_stop_wave_active:
+            self.time_stop_wave_timer += dt
+
+            if self.time_stop_wave_timer >= self.time_stop_wave_duration:
+                self.time_stop_wave_active = False
+                self.time_stop_wave_reverse = False
 
         # time stop wind up
         if self.time_stop_startup:
@@ -793,6 +823,13 @@ class Character:
                     # attack combo logic
                     if self._attackQueued and self._currentCombo:
                         self._attackQueued = False
+                        if not self.can_pay_attack_cost():
+                            self._attacking = False
+                            self._comboIndex = 0
+                            return
+
+                        self.pay_attack_cost()
+
                         self._comboIndex += 1
                         if self._comboIndex >= len(self._currentCombo):
                             self._comboIndex = 0
@@ -824,7 +861,8 @@ class Character:
                         self.spawn_attack_effect()
 
                     else:
-
+                        
+                        self._attackQueued = False
                         self._attacking = False
                         self._comboIndex = 0
                         self.frame_speed = 0.07
@@ -985,6 +1023,39 @@ class Character:
             rect = frame.get_rect(center=(int(x), int(y)))
             screen.blit(frame, rect)
 
+        # --- time stop wave ---
+        if self.time_stop_wave_active:
+            t = self.time_stop_wave_timer / self.time_stop_wave_duration
+            t = min(t, 1.0)
+
+            # smoother easing
+            progress = 1 - (1 - t) ** 3
+
+            if self.time_stop_wave_reverse:
+                progress = 1 - progress
+
+            radius = int(self.time_stop_wave_max_radius * progress)
+
+            center = (
+                int(self._pos.x + self._rect.width // 2),
+                int(self._pos.y + self._rect.height // 2)
+            )
+
+            # slower fade for visibility
+            alpha = int(255 * (1 - t * 0.4))   # was (1 - t)
+
+            surf = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+
+            main_color = (255, 0, 0)
+            outer_color = (255, 0, 0)
+            inner_color = (255, 0, 0)
+
+            pygame.draw.circle(surf, (*main_color, alpha), center, radius, width=28)
+            pygame.draw.circle(surf, (*outer_color, alpha // 2), center, radius, width=42)
+            pygame.draw.circle(surf, (*inner_color, alpha // 4), center, radius, width=16)
+
+            screen.blit(surf, (0, 0))
+
     def start_attack(self, combo_type):
         self._attacking = True
         self._attackQueued = False
@@ -1045,6 +1116,10 @@ class Character:
     def start_time_stop(self):
         if self.time_stop:
             return
+        
+        # start red wave effect
+        self.time_stop_wave_active = True
+        self.time_stop_wave_timer = 0.0
 
         self.game.time_stop = True
 
@@ -1071,6 +1146,12 @@ class Character:
     def end_time_stop(self):
         if not self.time_stop:
             return
+        
+        # start reverse wave
+        self.time_stop_wave_active = True
+        self.time_stop_wave_reverse = True
+        self.time_stop_wave_timer = 0.0
+
         self.time_stop = False
         self.time_stop_ending = True
 
@@ -1151,3 +1232,21 @@ class Character:
                 y_offset=15, forward_offset=-5),
         ]
         self.game.knives.extend(knives)
+
+    def can_pay_attack_cost(self):
+        if self.time_stop:
+            return self.time_energy >= self.time_attack_cost
+        else:
+            return self.mp >= self.mp_attack_cost
+
+    def pay_attack_cost(self):
+        if self.time_stop:
+            self.time_energy -= self.time_attack_cost
+
+            if self.time_energy <= 0:
+                self.time_energy = 0
+                self.time_stop = False
+                self.game.time_stop = False
+
+        else:
+            self.mp -= self.mp_attack_cost

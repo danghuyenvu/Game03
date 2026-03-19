@@ -68,23 +68,26 @@ class Game:
         self.loader.load_animation("flying_knife", "assets/sprite/bullet_sprite3")
         self.loader.load_animation("player_damage", "assets/sprite/player_damage")
         self.loader.load_animation("player_fall_down", "assets/sprite/player_fall_down")
-
+        # item and effect
         self.loader.load_animation("crystal", "assets/sprite/crystal_sprite")
         self.loader.load_animation("big_bomb_effect", "assets/sprite/big_bomb_effect")
         self.loader.load_animation("mp_item", "assets/sprite/mpup_sprite")
         self.loader.load_animation("hp_item", "assets/sprite/hpup_sprite")
 
+        # UI
+        self.loader.load_image("gauge", "assets/sprite/gauge_sprite/gauge_sprite_1.png")
+        for i in range(10):
+            self.loader.load_image(
+                f"time_number_sprite_{i}",
+                f"assets/sprite/time_number_sprite/time_number_sprite_{i}.png"
+            )
+        self.loader.load_image("hp_bar", "assets/sprite/hpvar_sprite/hpvar_sprite_19.png")
+        self.loader.load_image("mp_bar", "assets/sprite/mpvar_sprite/mpvar_sprite_19.png")
+
         # sounds
 
         # enemies
-        self.loader.load_animation(
-            "wisp",
-            "assets/sprite/will_o_wisp_sprite"
-        )
-
-        self.loader.load_animation("goblin_attack", "assets/sprite/goblin_attack_sprite")
-        self.loader.load_animation("goblin_run", "assets/sprite/goblin_run_sprite")
-        self.loader.load_animation("goblin_idle", "assets/sprite/goblin_sprite")
+        self.loader.load_animation("wisp","assets/sprite/will_o_wisp_sprite")
 
         self.loader.load_animation("goblin_attack", "assets/sprite/goblin_attack_sprite")
         self.loader.load_animation("goblin_run", "assets/sprite/goblin_run_sprite")
@@ -195,19 +198,94 @@ class Game:
             knife.draw(self._screen)
 
         # -----------------------
-        # UI (draw BEFORE filter if you want it grayscale)
-        # -----------------------
-        energy_text = f"Time: {int(self.player.time_energy)}"
-        text_surface = self._font.render(energy_text, True, (255, 255, 255))
-        self._screen.blit(text_surface, (10, 10))
-
-        # -----------------------
         # APPLY FILTER SAFELY
         # -----------------------
         if self.time_stop:
             filtered = apply_grayscale(self._screen.copy())
         else:
             filtered = self._screen
+
+        # -----------------------
+        # HP/MP bar
+        # -----------------------
+        hp_bar = self.loader.get_image("hp_bar")
+        mp_bar = self.loader.get_image("mp_bar")
+
+        # ratios
+        hp_ratio = self.player.hp / self.player.hp_max
+        mp_ratio = self.player.mp / self.player.mp_max
+
+        # clamp
+        hp_ratio = max(0, min(1, hp_ratio))
+        mp_ratio = max(0, min(1, mp_ratio))
+
+        # --- crop width ---
+        hp_width = int(hp_bar.get_width() * hp_ratio)
+        mp_width = int(mp_bar.get_width() * mp_ratio)
+
+        # create cropped surfaces
+        hp_crop = pygame.Surface((hp_width, hp_bar.get_height()), pygame.SRCALPHA)
+        mp_crop = pygame.Surface((mp_width, mp_bar.get_height()), pygame.SRCALPHA)
+
+        hp_crop.blit(hp_bar, (0, 0), (0, 0, hp_width, hp_bar.get_height()))
+        mp_crop.blit(mp_bar, (0, 0), (0, 0, mp_width, mp_bar.get_height()))
+
+        # --- position (under your gauge UI) ---
+        base_x = SCREEN_WIDTH // 2 - 195   # tweak this
+        base_y = 33                        # tweak this
+
+        # draw HP (top)
+        filtered.blit(hp_crop, (base_x, base_y))
+
+        # draw MP (below HP)
+        filtered.blit(mp_crop, (base_x, base_y + 12))
+
+        value = int(self.player.time_energy)
+        digits = list(str(value))
+    
+        # -----------------------
+        # GAUGE
+        # -----------------------
+        gauge = self.loader.get_image("gauge")
+
+        OFFSET_X = 15
+
+        gauge_rect = gauge.get_rect(midtop=(
+            SCREEN_WIDTH // 2 + OFFSET_X,
+            -7  # small padding from top
+        ))
+
+        filtered.blit(gauge, gauge_rect)
+
+        # -----------------------
+        # TIME
+        # -----------------------
+        value = int(self.player.time_energy)
+        value = max(0, min(999, value))  # clamp
+
+        digits = list(str(value))
+
+        digit_images = [
+            self.loader.get_image(f"time_number_sprite_{d}")
+            for d in digits
+        ]
+
+        spacing = 2
+
+        total_width = sum(img.get_width() for img in digit_images) + spacing * (len(digit_images) - 1)
+
+        # --- adjust these ---
+        circle_center_x = SCREEN_WIDTH // 2 + OFFSET_X
+        circle_center_y = 52
+        # --------------------
+
+        start_x = circle_center_x - total_width // 2
+
+        x = start_x
+        for img in digit_images:
+            y = circle_center_y - img.get_height() // 2
+            filtered.blit(img, (x, y))
+            x += img.get_width() + spacing
 
         # -----------------------
         # DRAW PLAYER ON TOP (NOT FILTERED)
