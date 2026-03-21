@@ -879,19 +879,25 @@ class Character:
     # -----------------------
 
     def check_collision(self):
-
         self._grounded = False
 
-        # _pos is midtop for drawing/camera; collision map wants top-left position.
-        self._rect.midtop = (int(self._pos.x), int(self._pos.y))
-        collision_pos = pygame.Vector2(self._rect.topleft)
-        
-        self._grounded = self.map.update_position(collision_pos, self._rect, self._vel)
-        # propagate collision-adjusted top-left position back to midtop position
-        self._pos.x = collision_pos.x + self._rect.width / 2
-        self._pos.y = collision_pos.y
+        # 1. Đồng bộ rect từ vị trí midtop hiện tại
         self._rect.midtop = (int(self._pos.x), int(self._pos.y))
 
+        # 2. Lấy vị trí top-left để đưa vào hệ thống va chạm
+        collision_pos = pygame.Vector2(self._rect.topleft)
+
+        # 3. Gọi hàm va chạm → hàm này sẽ sửa collision_pos và self._vel
+        self._grounded, _ = self.map.update_position(collision_pos, self._rect, self._vel)
+
+        # 4. Cập nhật lại _pos (midtop) từ kết quả top-left đã được điều chỉnh
+        self._pos.x = collision_pos.x + self._rect.width / 2
+        self._pos.y = collision_pos.y               # ← điểm midtop.y = top.y (vì midtop)
+
+        # 5. Đồng bộ lại rect từ midtop (để vẽ / camera dùng)
+        self._rect.midtop = (int(self._pos.x), int(self._pos.y))
+
+        # 6. Xử lý logic khi chạm đất
         if self._grounded:
             self._vel.y = 0
             self._jumpTimes = 0
@@ -946,8 +952,8 @@ class Character:
             y = draw_rect.y
         if camera_y == MAP_NUMS[1]*TILE_SIZE - SCREEN_HEIGHT:
             y = draw_rect.y%SCREEN_HEIGHT
-
-        screen.blit(image, pygame.Rect(x,y, draw_rect.width, draw_rect.height))
+        pygame.draw.rect(screen, (255, 0, 0), (x, y, 32, 64))
+        screen.blit(image, pygame.Rect(x - draw_rect.width/8,y, draw_rect.width, draw_rect.height))
 
         for effect in self.double_jump_effects:
 
