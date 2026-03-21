@@ -127,7 +127,7 @@ def get_collison(idx):
     square = square + [i for i in range (181,187)] + [i for i in range (203,210)]
     square = square + [i for i in range (460,475)] + [487, 685, 686]
     square = square + [i for i in range (779, 782)] + [i for i in range (789, 792)]
-    square = square + [i for i in range (798,803)] + [804, 806, 808, 812, 813]
+    square = square + [i for i in range (798,803)] + [796, 804, 806, 808, 812, 813]
     square = square + [i for i in range (815,820)] + [822, 824, 827, 829, 832, 833, 835, 837, 839]
 
     left_square_tri = [69, 70, 138, 139, 142, 145, 795, 820]
@@ -236,8 +236,8 @@ class Map:
                         collide.bot = True
 
         return collide
-    def update_position(self, position, rect, vel):
-        
+    
+    def bot_collide_rel(self, position, rect, vel):
         # 2. Xác định điểm kiểm tra (giữa chân nhân vật)
         foot_x = position.x + rect.width / 2 
         foot_y = position.y + rect.height
@@ -248,44 +248,6 @@ class Map:
         is_ground = False
         tolerance = 5  # Khoảng dung sai để bám vào dốc (pixels)
         current_block = None
-        
-        # Continuous collision detection - kiểm tra tất cả rows giữa vị trí cũ và mới
-        prev_row = int(self.prev_foot_y // TILE_SIZE)
-        if vel.y > 0 and row > prev_row:  # Đang rơi xuống
-            # Kiểm tra từng row từ prev_row đến row hiện tại
-            for check_row in range(prev_row, min(row + 1, len(self.collision_map))):
-                if 0 <= check_row < len(self.collision_map) and 0 <= col < len(self.collision_map[0]):
-                    tile_type = self.collision_map[check_row][col]
-                    if tile_type != 0:  # Tìm thấy collision
-                        rel_x = (foot_x % TILE_SIZE) / TILE_SIZE
-                        target_y = None
-                        
-                        # Tính target_y cho tile này
-                        if tile_type == 6:
-                            target_y = (check_row + rel_x) * TILE_SIZE
-                        elif tile_type == 7:
-                            target_y = (check_row + 1 - rel_x) * TILE_SIZE
-                        elif tile_type == 2:
-                            target_y = (check_row + (1 - ((1 - rel_x) + 1) / 2)) * TILE_SIZE
-                        elif tile_type == 3:
-                            target_y = (check_row + (0.5 + rel_x * 0.5)) * TILE_SIZE
-                        elif tile_type == 4:
-                            target_y = (check_row + (1 - rel_x * 0.5)) * TILE_SIZE
-                        elif tile_type == 5:
-                            target_y = (check_row + (1 - (rel_x + 1) / 2)) * TILE_SIZE
-                        elif tile_type == 1 or tile_type == 18:
-                            target_y = check_row * TILE_SIZE
-                        elif tile_type == 16:
-                            target_y = check_row * TILE_SIZE + 0.5
-                        
-                        if target_y is not None and foot_y > target_y and foot_y - target_y <= TILE_SIZE:
-                            position.y = target_y - rect.height
-                            vel.y = 0
-                            is_ground = True
-                            self.prev_foot_y = target_y
-                            rect.topleft = (int(position.x), int(position.y))
-                            return is_ground
-        
         # Kiểm tra nếu đang đứng trong phạm vi bản đồ
         if 0 <= row < len(self.collision_map) and 0 <= col < len(self.collision_map[0]):
             tile_type = self.collision_map[row][col]
@@ -326,88 +288,275 @@ class Map:
                 if abs(foot_y - target_y) <= tolerance:
                     position.y = target_y - rect.height
                     vel.y = 0
-                    if 0 <= row-1 < len(self.collision_map) and self.collision_map[row-1][col] == 1:
-                        position.y = position.y - 1
-                        self.prev_foot_y = foot_y
-                        self.update_position(position, rect, vel)
-                        return is_ground
+                    # if 0 <= row-1 < len(self.collision_map) and self.collision_map[row-1][col] == 1:
+                    #     position.y = position.y - 1
+                    #     self.prev_foot_y = foot_y
+                    #     self.update_position(position, rect, vel)
+                    #     return is_ground
                     is_ground = True
             current_block = tile_type
+        return is_ground, current_block
 
+    def left_rel(self, position, rect, vel, current_block, is_ground, count = 0):
         modify = False
-
-        is_left = True
+        # 2. Xác định điểm kiểm tra (giữa chân nhân vật)
+        foot_x = position.x 
+        foot_y = position.y + rect.height
         
+        col = int(foot_x // TILE_SIZE)
+        row = int(foot_y // TILE_SIZE)
         
-        leastrow = int(rect.y // TILE_SIZE)
-
+        leastrow = int(position.y // TILE_SIZE)
+        # left
+        
         if 0 <= row < len(self.collision_map) and 0 <= col < len(self.collision_map[0]):
-            rel_x = (foot_x % TILE_SIZE) / TILE_SIZE  # Vị trí 0.0 -> 1.0 trong 1 ô
-            is_left = 1 - rel_x > 0.5
             target_x = None
             for idx in range(leastrow, row):
-                tile_type = self.collision_map[idx][col]
+                tile_type = self.collision_map[idx][col-1]
                 if idx == row - 1:
                     if (tile_type == 6 or tile_type == 3) and vel.x < 0 and current_block == 1 :
                         position.y = position.y - 1
-                        self.update_position(position, rect, vel)
+                        return self.update_position(position, rect, vel, count)
                     if (tile_type == 7 or tile_type == 4) and vel.x > 0 and current_block == 1 :
                         position.y = position.y - 1
-                        self.update_position(position, rect, vel)
-                        
-                        
+                        return self.update_position(position, rect, vel, count)
 
                 if tile_type != 25 and tile_type != 26 and tile_type != 0 :
-                    temp_x = (col + 1) * TILE_SIZE if (1 - rel_x) >= 0.5 else col * TILE_SIZE
+                    temp_x = (col + 1) * TILE_SIZE
                     vel.x = 0
                     modify = True
                     if target_x is None:
                         target_x = temp_x
                     else :
-                        target_x = max (target_x, temp_x) if (1 - rel_x) >= 0.5 else min(target_x, temp_x)
+                        target_x = max (target_x, temp_x)
                 elif tile_type == 25:
-                    temp_x = (col + 1) * TILE_SIZE if (1 - rel_x) > 0.5 else (col + 0.5) * TILE_SIZE
+                    temp_x = (col + 1) * TILE_SIZE
                     if target_x is None:
                         target_x = temp_x
                     else :
-                        target_x = max (target_x, temp_x) if (1 - rel_x) >= 0.5 else min(target_x, temp_x)
+                        target_x = max (target_x, temp_x)
                     vel.x = 0
                     modify = True
                 elif tile_type == 26:
-                    temp_x = (col + 0.5) * TILE_SIZE if (1 - rel_x) > 0.5 else (col) * TILE_SIZE
+                    temp_x = (col + 0.5) * TILE_SIZE
                     if target_x is None:
                         target_x = temp_x
                     else :
-                        target_x = max (target_x, temp_x) if (1 - rel_x) >= 0.5 else min(target_x, temp_x)
+                        target_x = max (target_x, temp_x)
                     vel.x = 0
                     modify = True
             if modify:
-                position.x = target_x - rect.width / 2 if is_left else target_x
+                position.x = target_x
                 rect.topleft = (int(position.x), int(position.y))
                 self.prev_foot_y = foot_y
-                return is_ground
+        return is_ground, count
+    
+    def right_rel(self, position, rect, vel, current_block, is_ground, count = 0):
+        modify = False
+        # 2. Xác định điểm kiểm tra (giữa chân nhân vật)
+        foot_x = position.x + rect.width 
+        foot_y = position.y + rect.height
+        
+        col = int(foot_x // TILE_SIZE)
+        row = int(foot_y // TILE_SIZE)
+        
         leastrow = int(position.y // TILE_SIZE)
+        if 0 <= row < len(self.collision_map) and 0 <= col < len(self.collision_map[0]):
+            target_x = None
+            for idx in range(leastrow, row):
+                
+                tile_type = self.collision_map[idx][col]
+                if idx == row - 1:
+                    if (tile_type == 7 or tile_type == 4) and vel.x > 0 and current_block == 1 :
+                        position.y = position.y - 1
+                        return self.update_position(position, rect, vel, count)
+                    if (tile_type == 7 or tile_type == 4) and vel.x > 0 and current_block == 1 :
+                        position.y = position.y - 1
+                        return self.update_position(position, rect, vel, count)
+                        
+                if tile_type != 25 and tile_type != 26 and tile_type != 0 :
+                    temp_x = col * TILE_SIZE
+                    vel.x = 0
+                    modify = True
+                    if target_x is None:
+                        target_x = temp_x
+                    else :
+                        target_x = min(target_x, temp_x)
+                elif tile_type == 25:
+                    temp_x = (col + 0.5) * TILE_SIZE
+                    if target_x is None:
+                        target_x = temp_x
+                    else :
+                        target_x = min(target_x, temp_x)
+                    vel.x = 0
+                    modify = True
+                elif tile_type == 26:
+                    temp_x = (col) * TILE_SIZE
+                    if target_x is None:
+                        target_x = temp_x
+                    else :
+                        target_x = min(target_x, temp_x)
+                    vel.x = 0
+                    modify = True
+            if modify:
+                position.x = target_x - rect.width
+                rect.topleft = (int(position.x), int(position.y))
+                self.prev_foot_y = foot_y
+        return is_ground, count
+
+    def top_rel(self, position, rect, vel, is_ground):
+        foot_x = position.x + rect.width / 2 
+        col = int(foot_x // TILE_SIZE)
+        tolerance = 5
+        leastrow = int((position.y) // TILE_SIZE)
         if 0 <= leastrow < len(self.collision_map) and 0 <= col < len(self.collision_map[0]):
             tile_type = self.collision_map[leastrow][col]
-            rel_y = (position.y % TILE_SIZE) / TILE_SIZE  # Vị trí 0.0 -> 1.0 trong 1 ô
+            rel_y = ((position.y) % TILE_SIZE) / TILE_SIZE  # Vị trí 0.0 -> 1.0 trong 1 ô
             target_y_2 = None
             if tile_type == 18:
                 target_y_2 = (leastrow + 0.5) * TILE_SIZE if rel_y < 0.5 else None
             elif tile_type != 0:
-                target_y_2 = (leastrow + 1) * TILE_SIZE if 1 - rel_y > 0.2 else None
+                target_y_2 = (leastrow + 1) * TILE_SIZE if 1 - rel_y > 0 else None
             # Nếu tìm thấy sàn (dốc hoặc gạch)
             if target_y_2 is not None:
                 # Nếu chân nhân vật gần sàn (trong khoảng dung sai)
-                if abs(position.y - target_y_2) <= tolerance:
-                    position.y = target_y_2
-                    vel.y = 0
+                position.y = target_y_2
+                vel.y = 0
+
+    def update_position(self, position, rect, vel, count = 0):
+        
+
+        # 2. Xác định điểm kiểm tra (giữa chân nhân vật)
+        foot_x = position.x + rect.width / 2 
+        foot_y = position.y + rect.height
+        
+        col = int(foot_x // TILE_SIZE)
+        row = int(foot_y // TILE_SIZE)
+        
+        is_ground = False
+        tolerance = 5  # Khoảng dung sai để bám vào dốc (pixels)
+        current_block = None
+        if count == 3:
+            return is_ground
+        # Continuous collision detection - kiểm tra tất cả rows giữa vị trí cũ và mới
+        prev_row = int(self.prev_foot_y // TILE_SIZE)
+        if vel.y > 0 and row > prev_row:  # Đang rơi xuống
+            # Kiểm tra từng row từ prev_row đến row hiện tại
+            for check_row in range(prev_row, min(row + 1, len(self.collision_map))):
+                if 0 <= check_row < len(self.collision_map) and 0 <= col < len(self.collision_map[0]):
+                    tile_type = self.collision_map[check_row][col]
+                    if tile_type != 0:  # Tìm thấy collision
+                        rel_x = (foot_x % TILE_SIZE) / TILE_SIZE
+                        target_y = None
+                        
+                        # Tính target_y cho tile này
+                        if tile_type == 6:
+                            target_y = (check_row + rel_x) * TILE_SIZE
+                        elif tile_type == 7:
+                            target_y = (check_row + 1 - rel_x) * TILE_SIZE
+                        elif tile_type == 2:
+                            target_y = (check_row + (1 - ((1 - rel_x) + 1) / 2)) * TILE_SIZE
+                        elif tile_type == 3:
+                            target_y = (check_row + (0.5 + rel_x * 0.5)) * TILE_SIZE
+                        elif tile_type == 4:
+                            target_y = (check_row + (1 - rel_x * 0.5)) * TILE_SIZE
+                        elif tile_type == 5:
+                            target_y = (check_row + (1 - (rel_x + 1) / 2)) * TILE_SIZE
+                        elif tile_type == 1 or tile_type == 18:
+                            target_y = check_row * TILE_SIZE
+                        elif tile_type == 16:
+                            target_y = check_row * TILE_SIZE + 0.5
+                        
+                        if target_y is not None and foot_y > target_y and foot_y - target_y <= TILE_SIZE:
+                            position.y = target_y - rect.height
+                            vel.y = 0
+                            is_ground = True
+                            self.prev_foot_y = target_y
+                            rect.topleft = (int(position.x), int(position.y))
+                            return is_ground, count + 1
+        
+        
+        
+        
+
+        original_pos = pygame.Vector2(position.x, position.y)
+        results = []
+
+        # 12 kịch bản thứ tự ưu tiên (Trục check trước, Trục check sau, và hướng ép buộc)
+        # Mỗi bộ là: (Thứ tự ưu tiên, Hướng ưu tiên cụ thể)
+        strategies = [
+            ('top_first', 'left'), ('top_first', 'right'),
+            ('bot_first', 'left'), ('bot_first', 'right'),
+            ('left_first', 'top'), ('right_first', 'top')
+        ]
+
+        for strategy in strategies:
+            # Tạo bản sao tạm thời để thử nghiệm
+            test_pos = pygame.Vector2(original_pos.x, original_pos.y)
+            test_vel = pygame.Vector2(vel.x, vel.y)
+            test_rect = rect.copy()
             
+            # Thực hiện kịch bản check
+            is_ground = self._apply_strategy(test_pos, test_rect, test_vel, strategy)
+            
+            # Kiểm tra xem sau khi áp dụng, vị trí này có còn "kẹt" (overlap) không
+            collision_data = self.check_collision(test_pos, test_rect)
+            if collision_data.overlap == 0:
+                dist = original_pos.distance_to(test_pos)
+                results.append((dist, test_pos, is_ground))
+
+        # Nếu tìm thấy các vị trí hợp lệ, chọn vị trí có khoảng cách di chuyển nhỏ nhất
+        if results:
+            results.sort(key=lambda x: x[0])
+
+        # if vel.y >= 0:
+        #     is_ground, current_block = self.bot_collide_rel(position, rect, vel)
+        # else:
+        #     self.top_rel(position, rect, vel, is_ground)
+        # if vel.x > 0:
+        #     is_ground, countr = self.right_rel(position, rect, vel, current_block, is_ground, count)
+        # else:
+        #     is_ground, countl = self.left_rel(position, rect, vel, current_block, is_ground, count)
+        if len(results) > 0:
+            if position.x == results[0][1].x and position.x == results[0][1].y:
+                is_ground = True
+            position.x, position.y = results[0][1].x, results[0][1].y 
+            is_ground = results[0][2] or is_ground
         # Cập nhật lại Rect để vẽ (Dùng int để tránh lỗi TypeError)
         rect.topleft = (int(position.x), int(position.y))
         self.prev_foot_y = foot_y
-        return is_ground
+        return is_ground, count + 1
+
 
     
+    def _apply_strategy(self, pos, rect, vel, strategy):
+        is_ground = False
+        current_block = None
+        
+        mode, sub = strategy
+        
+        if mode == 'bot_first':
+            is_ground, current_block = self.bot_collide_rel(pos, rect, vel)
+            if sub == 'right': self.right_rel(pos, rect, vel, current_block, is_ground)
+            else: self.left_rel(pos, rect, vel, current_block, is_ground)
+            
+        elif mode == 'right_first':
+            # Check ngang trước để chặn tường, sau đó mới tính sàn/dốc
+            self.right_rel(pos, rect, vel, current_block, is_ground)
+            if sub == 'top': self.top_rel(pos, rect, vel,is_ground)
+            is_ground, current_block = self.bot_collide_rel(pos, rect, vel)
+            
+        elif mode == 'top_first':
+            self.top_rel(pos, rect, vel, is_ground)
+            if sub == 'left': self.left_rel(pos, rect, vel, None, is_ground)
+            else: self.right_rel(pos, rect, vel, None, is_ground)
+        elif mode == 'left_first':
+            self.left_rel(pos, rect, vel, current_block, is_ground)
+            if sub == 'top': self.top_rel(pos, rect, vel,is_ground)
+            is_ground, current_block = self.bot_collide_rel(pos, rect, vel)
+            
+        rect.topleft = (int(pos.x), int(pos.y))
+        return is_ground
     def build_collision(self, index_map):
         for i, row in enumerate(index_map):
             for j, cell in enumerate(row):
@@ -416,7 +565,10 @@ class Map:
     def load_collision_map(self, screen, index_map, collision_tiles, position):
         self.build_collision(index_map)
         self.collision_tiles = collision_tiles
-        # load_map(screen, self.collision_map, collision_tiles, position)
+        load_map(screen, self.collision_map, collision_tiles, position)
+    
+    def build_push_map(self):
+        pass
 
     
         
