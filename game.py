@@ -370,54 +370,50 @@ class Game:
             # create cropped surfaces
             hp_crop = pygame.Surface((hp_width, hp_bar.get_height()), pygame.SRCALPHA)
             mp_crop = pygame.Surface((mp_width, mp_bar.get_height()), pygame.SRCALPHA)
-        # --- position (under your gauge UI) ---
-        base_x = SCREEN_WIDTH // 2 - 199   # tweak this
-        base_y = 25                        # tweak this
+            # --- position (under your gauge UI) ---
+            base_x = SCREEN_WIDTH // 2 - 199   # tweak this
+            base_y = 25                        # tweak this
 
             hp_crop.blit(hp_bar, (0, 0), (0, 0, hp_width, hp_bar.get_height()))
             mp_crop.blit(mp_bar, (0, 0), (0, 0, mp_width, mp_bar.get_height()))
 
-            # --- position (under your gauge UI) ---
-            base_x = SCREEN_WIDTH // 2 - 195   # tweak this
-            base_y = 33                        # tweak this
-
-         # draw HP (top)
+            # draw HP (top)
             filtered.blit(hp_crop, (base_x, base_y))
-        value = int(self.player.time_energy)
-        digits = list(str(value))
+            value = int(self.player.time_energy)
+            digits = list(str(value))
 
-        # -----------------------
-        # BOSS HP BAR
-        # -----------------------
-        if self.boss and self.boss.hp > 0:
+            # -----------------------
+            # BOSS HP BAR
+            # -----------------------
+            if self.boss and self.boss.hp > 0:
 
-            base_bar = self.loader.get_image("hp_bar")
-            boss_bar = recolor_red(base_bar)
+                base_bar = self.loader.get_image("hp_bar")
+                boss_bar = recolor_red(base_bar)
 
-            # --- Stretch horizontally ---
-            stretch_w = int(boss_bar.get_width() * 1.7)   # widen boss bar
-            stretch_h = boss_bar.get_height()
+                # --- Stretch horizontally ---
+                stretch_w = int(boss_bar.get_width() * 1.7)   # widen boss bar
+                stretch_h = boss_bar.get_height()
 
-            boss_bar = pygame.transform.scale(boss_bar, (stretch_w, stretch_h))
+                boss_bar = pygame.transform.scale(boss_bar, (stretch_w, stretch_h))
 
-            ratio = self.boss.hp / self.boss.max_hp
-            ratio = max(0, min(1, ratio))
+                ratio = self.boss.hp / self.boss.max_hp
+                ratio = max(0, min(1, ratio))
 
-            width = int(stretch_w * ratio)
+                width = int(stretch_w * ratio)
 
-            crop = pygame.Surface((width, stretch_h), pygame.SRCALPHA)
-            crop.blit(boss_bar, (0,0), (0,0,width,stretch_h))
+                crop = pygame.Surface((width, stretch_h), pygame.SRCALPHA)
+                crop.blit(boss_bar, (0,0), (0,0,width,stretch_h))
 
-            # centered top
-            x = SCREEN_WIDTH//2 - stretch_w//2 + 160
-            y = 25
+                # centered top
+                x = SCREEN_WIDTH//2 - stretch_w//2 + 160
+                y = 25
 
-            filtered.blit(crop, (x, y))
-    
-        # -----------------------
-        # GAUGE
-        # -----------------------
-        gauge = self.loader.get_image("gauge")
+                filtered.blit(crop, (x, y))
+        
+            # -----------------------
+            # GAUGE
+            # -----------------------
+            gauge = self.loader.get_image("gauge")
 
             # draw MP (below HP)
             filtered.blit(mp_crop, (base_x, base_y + 12))
@@ -429,17 +425,12 @@ class Game:
             # GAUGE
             # -----------------------
             gauge = self.loader.get_image("gauge")
-        gauge_rect = gauge.get_rect(midtop=(
-            SCREEN_WIDTH // 2 + OFFSET_X,
-            -15  # small padding from top
-        ))
-
-            OFFSET_X = 15
-
             gauge_rect = gauge.get_rect(midtop=(
                 SCREEN_WIDTH // 2 + OFFSET_X,
-                -7  # small padding from top
+                -15  # small padding from top
             ))
+
+            OFFSET_X = 15
 
             filtered.blit(gauge, gauge_rect)
 
@@ -457,10 +448,10 @@ class Game:
             ]
 
             spacing = 2
-        # --- adjust these ---
-        circle_center_x = SCREEN_WIDTH // 2 + OFFSET_X
-        circle_center_y = 44
-        # --------------------
+            # --- adjust these ---
+            circle_center_x = SCREEN_WIDTH // 2 + OFFSET_X
+            circle_center_y = 44
+            # --------------------
 
             total_width = sum(img.get_width() for img in digit_images) + spacing * (len(digit_images) - 1)
 
@@ -477,18 +468,18 @@ class Game:
                 filtered.blit(img, (x, y))
                 x += img.get_width() + spacing
 
-            # -----------------------
-            # DRAW PLAYER ON TOP (NOT FILTERED)
-            # -----------------------
-            self.player.draw(filtered)
-        
-            # -----------------------
-            # SCALE + DISPLAY
-            # -----------------------
-            scaled = pygame.transform.scale(
-                filtered,
-                (SCREEN_WIDTH * GAME_SCALE, SCREEN_HEIGHT * GAME_SCALE)
-            )
+        # -----------------------
+        # DRAW PLAYER ON TOP (NOT FILTERED)
+        # -----------------------
+        self.player.draw(filtered)
+    
+        # -----------------------
+        # SCALE + DISPLAY
+        # -----------------------
+        scaled = pygame.transform.scale(
+            filtered,
+            (SCREEN_WIDTH * GAME_SCALE, SCREEN_HEIGHT * GAME_SCALE)
+        )
 
         
         self._display.blit(scaled, (0,0))
