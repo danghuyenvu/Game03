@@ -166,9 +166,9 @@ class Game:
         self.boss = Boss(self.loader, self, self.player)
 
         self.BG = build_background()
-        self.map_tiles, self.collision_tiles = build_map()
         self.INDEX_MAP = load_map_from_excel()
         self.collision_map = Map()
+        self.map_tiles, self.collision_tiles = self.collision_map.build_map()
         self.player.set_map(self.collision_map)
         self.collision_map.build_collision(self.INDEX_MAP, self.collision_tiles)
 
@@ -252,7 +252,7 @@ class Game:
         pos.x = self.player._pos.x
         pos.y = self.player._pos.y
         
-        load_map(self._screen, self.INDEX_MAP, self.map_tiles, pos)
+        self.collision_map.load_map(self._screen, self.INDEX_MAP, self.map_tiles, pos)
         self.collision_map.load_collision_map(self._screen, self.collision_tiles, pos)
 
         # camera_x = min(max(pos.x - SCREEN_WIDTH // 2, 0), MAP_NUMS[0]*TILE_SIZE - SCREEN_WIDTH)
