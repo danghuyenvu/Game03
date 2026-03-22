@@ -238,6 +238,9 @@ class Character:
         self._damageLock = False  
         self._knockbackVel = pygame.Vector2(0, 0)
 
+        # fire upgrade
+        self.fire_immune = False
+
     # -----------------------
     # INPUT
     # -----------------------
@@ -990,7 +993,7 @@ class Character:
         screen_rect = draw_rect.move(-camera_x, -camera_y)
 
         # debug collision box
-        # pygame.draw.rect(screen, (255, 0, 0), screen_rect)
+        # pygame.draw.rect(screen, (255, 0, 0), screen_rect.move())
 
         # draw sprite
         screen.blit(image, screen_rect)
@@ -1434,3 +1437,9 @@ class Character:
 
     def set_map(self, map: Map):
         self.map = map
+
+    def fire_upgrade(self):
+        self.fire_immune = True
+
+    def get_fire(self):
+        return self.fire_immune
