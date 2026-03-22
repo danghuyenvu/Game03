@@ -1,6 +1,8 @@
 from settings import *
 from character import *
+from utils import *
 from wisp import *
+from boss import Boss
 from asset_loader import AssetLoader
 import pygame
 import sys
@@ -8,7 +10,7 @@ from build import *
 
 class Position:
     def __init__(self):
-        self.x = 36*35
+        self.x = 36*36
         self.y = 360
 
 pos = Position()
@@ -33,7 +35,7 @@ class Game:
         self.player = None
         self.wisp = None   # store animation frames
         self.goblin = None
-        
+        self.boss = None
 
     # -----------------------
     # ASSET LOADING
@@ -93,6 +95,25 @@ class Game:
         self.loader.load_image("hp_bar", "assets/sprite/hpvar_sprite/hpvar_sprite_19.png")
         self.loader.load_image("mp_bar", "assets/sprite/mpvar_sprite/mpvar_sprite_19.png")
 
+        # Boss
+        self.loader.load_animation("marisa_idle", "assets/sprite/marisa")
+        self.loader.load_animation("marisa_dir_change", "assets/sprite/marisa_dir_change")
+        self.loader.load_animation("marisa_up_to_down", "assets/sprite/marisa_up_to_down")
+        self.loader.load_animation("marisa_down", "assets/sprite/marisa_down")
+        self.loader.load_animation("marisa_down_to_up", "assets/sprite/marisa_down_to_up")
+        self.loader.load_animation("marisa_dira_down_change", "assets/sprite/marisa_dira_change_down")
+        self.loader.load_animation("marisa_stop", "assets/sprite/marisa_stop")
+        self.loader.load_animation("marisa_dash", "assets/sprite/marisa_dash")
+        self.loader.load_animation("marisa_dash_zanzou", "assets/sprite/marisa_dash_zanzou")
+        self.loader.load_animation("marisa_undershot", "assets/sprite/marisa_undershot")
+        self.loader.load_animation("marisa_timeshot", "assets/sprite/marisa_timeshot")
+        self.loader.load_animation("marisa_shot", "assets/sprite/marisa_shot")
+        self.loader.load_animation("marisa_undershot_a", "assets/sprite/marisa_undershot_a")
+        self.loader.load_animation("marisa_laser", "assets/sprite/marisa_laser")
+        self.loader.load_animation("marisa_after_effect", "assets/sprite/marisa_after_effect")
+        self.loader.load_animation("marisa_after_effect_s", "assets/sprite/marisa_after_effect_s")
+        self.loader.load_animation("marisa_shot_a", "assets/sprite/marisa_shot_a")
+        self.loader.load_animation("smoke", "assets/sprite/smoke")
         # sounds
 
         # enemies
@@ -103,6 +124,8 @@ class Game:
         self.loader.load_animation("goblin_idle", "assets/sprite/goblin_sprite")
 
         self.knives = []
+        self.enemy_projectiles = []
+        self.enemy_particles = []
         # music
         # self.loader.load_music("Luna_Dial", "assets/music/Lunar Clock Lunar Dial.ogg")
         # music_path = self.loader.get_music("Luna_Dial")
@@ -138,6 +161,9 @@ class Game:
 
         # create entities AFTER assets exist
         self.player = Character(self.loader, self)
+
+        # spawn boss
+        self.boss = Boss(self.loader, self, self.player)
 
         self.BG = build_background()
         self.INDEX_MAP = load_map_from_excel()
@@ -175,6 +201,7 @@ class Game:
         self.player.update(dt)
 
         if not self.time_stop:
+            self.boss.update(dt, self.player._pos, self.knives)
             self.wisp.update(dt, self.player._pos, self.knives)
             self.goblin.update(dt, self.player._rect, self.knives)
             self.crystal.update(dt, self.player._pos, self.knives)
@@ -182,11 +209,16 @@ class Game:
             for knife in self.knives:
                 knife.update(dt)
 
-            # remove dead knives
-            self.knives = [k for k in self.knives if k.alive]
+            for proj in self.enemy_projectiles:
+                proj.update(dt, self.player._rect, self.enemy_particles)
 
-            for knife in self.knives:
-                knife.update(dt)
+            # --- Update enemy particles ---
+            for p in self.enemy_particles:
+                p.update(dt)
+
+            self.enemy_particles = [p for p in self.enemy_particles if p.alive]
+
+            self.enemy_projectiles = [p for p in self.enemy_projectiles if p.alive]
 
             # remove dead knives
             self.knives = [k for k in self.knives if k.alive]
@@ -234,9 +266,15 @@ class Game:
         self.wisp.draw(self._screen)
         self.goblin.draw(self._screen)
         self.crystal.draw(self._screen)
+        # draw boss
+        self.boss.draw(self._screen)
 
         for knife in self.knives:
             knife.draw(self._screen)
+        for proj in self.enemy_projectiles:
+            proj.draw(self._screen)
+        for p in self.enemy_particles:
+            p.draw(self._screen)
 
         # -----------------------
         # APPLY FILTER SAFELY
@@ -272,8 +310,8 @@ class Game:
         mp_crop.blit(mp_bar, (0, 0), (0, 0, mp_width, mp_bar.get_height()))
 
         # --- position (under your gauge UI) ---
-        base_x = SCREEN_WIDTH // 2 - 195   # tweak this
-        base_y = 33                        # tweak this
+        base_x = SCREEN_WIDTH // 2 - 199   # tweak this
+        base_y = 25                        # tweak this
 
         # draw HP (top)
         filtered.blit(hp_crop, (base_x, base_y))
@@ -283,6 +321,34 @@ class Game:
 
         value = int(self.player.time_energy)
         digits = list(str(value))
+
+        # -----------------------
+        # BOSS HP BAR
+        # -----------------------
+        if self.boss and self.boss.hp > 0:
+
+            base_bar = self.loader.get_image("hp_bar")
+            boss_bar = recolor_red(base_bar)
+
+            # --- Stretch horizontally ---
+            stretch_w = int(boss_bar.get_width() * 1.7)   # widen boss bar
+            stretch_h = boss_bar.get_height()
+
+            boss_bar = pygame.transform.scale(boss_bar, (stretch_w, stretch_h))
+
+            ratio = self.boss.hp / self.boss.max_hp
+            ratio = max(0, min(1, ratio))
+
+            width = int(stretch_w * ratio)
+
+            crop = pygame.Surface((width, stretch_h), pygame.SRCALPHA)
+            crop.blit(boss_bar, (0,0), (0,0,width,stretch_h))
+
+            # centered top
+            x = SCREEN_WIDTH//2 - stretch_w//2 + 160
+            y = 25
+
+            filtered.blit(crop, (x, y))
     
         # -----------------------
         # GAUGE
@@ -293,7 +359,7 @@ class Game:
 
         gauge_rect = gauge.get_rect(midtop=(
             SCREEN_WIDTH // 2 + OFFSET_X,
-            -7  # small padding from top
+            -15  # small padding from top
         ))
 
         filtered.blit(gauge, gauge_rect)
@@ -317,7 +383,7 @@ class Game:
 
         # --- adjust these ---
         circle_center_x = SCREEN_WIDTH // 2 + OFFSET_X
-        circle_center_y = 52
+        circle_center_y = 44
         # --------------------
 
         start_x = circle_center_x - total_width // 2
