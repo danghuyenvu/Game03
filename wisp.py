@@ -3,6 +3,9 @@ import math
 import random
 from pygame.locals import *
 from settings import *
+import threading
+
+thread_knife_lock = threading.Lock() # lock mechanism for shared mem
 
 def update_entity_pos(camera_pos, entity_rect):
     """
@@ -79,8 +82,8 @@ class Wisp:
                 return
             
             #check attacking
-            if self.did_hit(player._rect):
-                player.take_damage(self._pos.x)
+            if self.did_hit(player):
+                player.apply_damage(WISP_DAMAGE, self._pos.x)
 
             # move toward player
             self._pos += direction * self._speed * dt
@@ -126,8 +129,12 @@ class Wisp:
     #------------------------------
     #    ENEMY ATTACK
     #------------------------------
-    def did_hit(self, player_rect):
-        if self._rect.colliderect(player_rect):
+    def did_hit(self, player):
+        player_hurtbox = pygame.Rect(0, 0, PLAYER_HURTBOX_WIDTH, PLAYER_HURTBOX_HEIGHT)
+        player_hurtbox.midbottom = player._rect.midbottom
+        if player.current_anim == "crouch" or player.current_anim == "slide":
+            player_hurtbox.height //= 2
+        if self._rect.colliderect(player_hurtbox):
             return True
         return False
     
@@ -136,20 +143,22 @@ class Wisp:
     #------------------------------
     def is_hit(self, knives):
         # accumulate the hitbox of every 3 knives to one
-        for i in range(0, len(knives), 3):
-            group = knives[i:i+3]
-            rect_left = min(x.rect.left for x in group)
-            rect_top = min(x.rect.top for x in group)
-            rect_right = max(x.rect.right for x in group)
-            rect_bottom = max(x.rect.bottom for x in group)
+        with thread_knife_lock:
+            for i in range(0, len(knives), 3):
+                if not knives[i].alive:
+                    continue
+                group = knives[i:i+3]
+                rect_left = min(x.rect.left for x in group)
+                rect_top = min(x.rect.top for x in group)
+                rect_right = max(x.rect.right for x in group)
+                rect_bottom = max(x.rect.bottom for x in group)
 
-            if (rect_left <= self._rect.right and rect_right >= self._rect.left
-                and rect_top <= self._rect.bottom and rect_bottom >= self._rect.top):
-                #hit detected, gotta mark this batch of knives as ded
-                for x in group:
-                    x.alive = False
-                return True
-
+                if (rect_left <= self._rect.right and rect_right >= self._rect.left
+                    and rect_top <= self._rect.bottom and rect_bottom >= self._rect.top):
+                    #hit detected, gotta mark this batch of knives as ded
+                    for x in group:
+                        x.alive = False
+                    return True
         return False
     
 class Goblin:
@@ -210,13 +219,12 @@ class Goblin:
         # check hit player if attacking (hit box increase from frame 15 - 21 and then reduce)
         if self._attack:
             if self.did_hit(player):
-                player.take_damage(self._pos.x)
+                player.apply_damage(GOB_DAMAGE, self._pos.x)
 
         #hit check
         if self._health > 0:
             if self.is_hit(knives):
                 self._hit = True
-                self._health -= 20
                 if self._health <= 0:
                     self._health = 0
                     self._frames = self._animations["die"]
@@ -375,8 +383,10 @@ class Goblin:
     #    ENEMY HIT PLAYER
     #------------------------------
     def did_hit(self, player):
-        player_hurtbox = pygame.Rect(0, 0, PLAYER_COLLISION_WIDTH, PLAYER_COLLISION_HEIGHT)
-        player_hurtbox.midtop = player._pos
+        player_hurtbox = pygame.Rect(0, 0, PLAYER_HURTBOX_WIDTH, PLAYER_HURTBOX_HEIGHT)
+        player_hurtbox.midbottom = player._rect.midbottom
+        if player.current_anim == "crouch" or player.current_anim == "slide":
+            player_hurtbox.height //= 2
         if 15 <= self._frame_index <= 21:
             # hitbox size increasing horizontaly
             progress = (self._frame_index - 15) / (21 - 15)
@@ -423,21 +433,28 @@ class Goblin:
     #------------------------------
     def is_hit(self, knives):
         # accumulate the hitbox of every 3 knives to one
-        for i in range(0, len(knives), 3):
-            group = knives[i:i+3]
-            rect_left = min(x.rect.left for x in group)
-            rect_top = min(x.rect.top for x in group)
-            rect_right = max(x.rect.right for x in group)
-            rect_bottom = max(x.rect.bottom for x in group)
+        ret = False
+        with thread_knife_lock:
+            for i in range(0, len(knives), 3):
+                if not knives[i].alive:
+                    continue
+                if self._health <= 0:
+                    break
+                group = knives[i:i+3]
+                rect_left = min(x.rect.left for x in group)
+                rect_top = min(x.rect.top for x in group)
+                rect_right = max(x.rect.right for x in group)
+                rect_bottom = max(x.rect.bottom for x in group)
 
-            if (rect_left <= self._rect.right and rect_right >= self._rect.left
-                and rect_top <= self._rect.bottom and rect_bottom >= self._rect.top):
-                #hit detected, gotta mark this batch of knives as ded
-                for x in group:
-                    x.alive = False
-                return True
+                if (rect_left <= self._rect.right and rect_right >= self._rect.left
+                    and rect_top <= self._rect.bottom and rect_bottom >= self._rect.top):
+                    #hit detected, gotta mark this batch of knives as ded
+                    for x in group:
+                        x.alive = False
+                    self._health -= 1
+                    ret = True
 
-        return False
+        return ret
 
 class Item:
     def __init__(self, loader, name, pos):
@@ -446,11 +463,12 @@ class Item:
         self._pop_duration = 0.8
         self._pop_height = 40
         self._pop_timer = 0
-        self._image = loader.get_animation(name)[0]
-        self._rect = self._image.get_rect(center=pos)
+        self._image = loader.get_image(name)
+        self._rect = self._image.get_rect(midbottom=pos)
         self._pos = pygame.Vector2(pos)
+        self.name = name
 
-    def update(self, dt, player_pos):
+    def update(self, dt, player):
         if self._pop:
             self._pop_timer += dt
 
@@ -458,28 +476,33 @@ class Item:
                 self._pop_timer = self._pop_duration
         
         if self._shown:
-            distance = (player_pos - self._pos).length()
+            distance = (player._pos - self._rect.midtop).length()
             if distance <= ITEM_COLLECT_RANGE:
                 self._shown = False
-                print("Item collected")
+                if self.name == "hp_item":
+                    player.hp = player.hp_max
+                else:
+                    player.mp = player.mp_max
 
-    def draw(self, screen):
-        offset_y = 0
-        if self._pop:
-            progress = self._pop_timer / self._pop_duration
-            offset_y = -self._pop_height * math.sin(progress * math.pi)
+    def draw(self, screen, camera_pos):
+        is_draw, draw_pos = update_entity_pos(camera_pos, self._rect)
+        if is_draw:
+            offset_y = 0
+            if self._pop:
+                progress = self._pop_timer / self._pop_duration
+                offset_y = -self._pop_height * math.sin(progress * math.pi)
 
-        draw_pos = (self._rect.centerx, self._rect.centery + offset_y)
-        if self._shown:
-            item_rect = self._image.get_rect(center=draw_pos)
-            screen.blit(self._image, item_rect)
+            draw_pos = (draw_pos[0], draw_pos[1] + offset_y)
+            if self._shown:
+                item_rect = self._image.get_rect(topleft=draw_pos)
+                screen.blit(self._image, item_rect)
 
 class Crystal:
     """
     crystal 4: hp
     crystal 0: mp
     """
-    def __init__(self, loader, c_type=0):
+    def __init__(self, loader, data):
         frames = loader.get_animation("crystal")
         self._death_frames = loader.get_animation("big_bomb_effect")
         self._alive = True
@@ -490,22 +513,26 @@ class Crystal:
         self._shake_strength = 4 
         self._shake_duration = 8
         self._hit = False
-        index = c_type % len(frames)
+        index = data[2] % len(frames)
         self._frame = [frames[index]]
         
-        self._health = 100
+        self._health = 3
 
         self._image = self._frame[0]
-        self._pos = pygame.Vector2(CRYSTAL_POS[0])
-        self._rect = self._image.get_rect(center=self._pos)
+        self._pos = pygame.Vector2(data[0], data[1])
+        self._rect = self._image.get_rect(midbottom=self._pos)
         self._died = False
 
-        if index == 0:
-            self._item = Item(loader, "mp_item", self._pos)
-        else:
-            self._item = Item(loader, "hp_item", self._pos)
+        match index:
+            case 0:
+                self._item = Item(loader, "mp_item", self._pos)
+            case 1:
+                self._item = Item(loader, "hp_item", self._pos)
+            case _:
+                item_type = random.choice(["hp_item", "mp_item"])
+                self._item = Item(loader, item_type, self._pos)
 
-    def update(self, dt, player_pos, knives):
+    def update(self, dt, player, knives):
         if not self._died:
             if self._alive and self.is_hit(knives):
                 self._hit = True
@@ -537,7 +564,7 @@ class Crystal:
                 if self._shake_timer > 1 / self._shake_duration:
                     self._shake_timer = 0
                     self._hit = False
-        self._item.update(dt, player_pos)
+        self._item.update(dt, player)
 
     # helper function to apply flash effect when hit
     def apply_flash(self, color=(255, 0, 0), alpha=120):
@@ -564,24 +591,34 @@ class Crystal:
                     draw_image = self.apply_flash()
 
                 draw_pos = (draw_pos[0] + offset_x, draw_pos[1])
-                rect = draw_image.get_rect(center=draw_pos)
+                if self._alive:
+                    rect = draw_image.get_rect(topleft=draw_pos)
+                else:
+                    rect = draw_image.get_rect(midtop=draw_pos)
                 screen.blit(draw_image, rect)
-            self._item.draw(screen)
+            self._item.draw(screen, camera_pos)
 
     def is_hit(self, knives):
         # accumulate the hitbox of every 3 knives to one
-        for i in range(0, len(knives), 3):
-            group = knives[i:i+3]
-            rect_left = min(x.rect.left for x in group)
-            rect_top = min(x.rect.top for x in group)
-            rect_right = max(x.rect.right for x in group)
-            rect_bottom = max(x.rect.bottom for x in group)
+        ret = False
+        with thread_knife_lock:
+            for i in range(0, len(knives), 3):
+                if not knives[i].alive:
+                    continue
+                if self._health <= 0:
+                    break
+                group = knives[i:i+3]
+                rect_left = min(x.rect.left for x in group)
+                rect_top = min(x.rect.top for x in group)
+                rect_right = max(x.rect.right for x in group)
+                rect_bottom = max(x.rect.bottom for x in group)
 
-            if (rect_left <= self._rect.right and rect_right >= self._rect.left
-                and rect_top <= self._rect.bottom and rect_bottom >= self._rect.top):
-                #hit detected, gotta mark this batch of knives as ded
-                for x in group:
-                    x.alive = False
-                return True
+                if (rect_left <= self._rect.right and rect_right >= self._rect.left
+                    and rect_top <= self._rect.bottom and rect_bottom >= self._rect.top):
+                    #hit detected, gotta mark this batch of knives as ded
+                    for x in group:
+                        x.alive = False
+                    self._health -= 1
+                    ret = True
 
-        return False
+        return ret
