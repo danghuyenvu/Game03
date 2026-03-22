@@ -952,8 +952,8 @@ class Character:
             y = draw_rect.y
         if camera_y == MAP_NUMS[1]*TILE_SIZE - SCREEN_HEIGHT:
             y = draw_rect.y%SCREEN_HEIGHT
-        pygame.draw.rect(screen, (255, 0, 0), (x, y, 32, 64))
-        screen.blit(image, pygame.Rect(x - draw_rect.width/8,y, draw_rect.width, draw_rect.height))
+        pygame.draw.rect(screen, (255, 0, 0), (x - draw_rect.width/2, y, draw_rect.width, draw_rect.height))
+        screen.blit(image, pygame.Rect(x - draw_rect.width/2 , y , draw_rect.width, draw_rect.height))
 
         for effect in self.double_jump_effects:
 

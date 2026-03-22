@@ -2,78 +2,6 @@ import threading
 import os, re, csv
 import pygame
 from settings import *
-def build_map():
-    # 1. Định nghĩa đường dẫn
-    path_map = "assets/map_tiles"
-    path_coll = "assets/collision_tiles"
-    
-    # Hàm phụ để lấy số từ tên file (giúp sắp xếp đúng: 0, 1, 2... thay vì 0, 1, 10)
-    def get_num(filename):
-        nums = re.findall(r'\d+', filename)
-        return int(nums[0]) if nums else 0
-
-    def load_from_dir(directory):
-        tiles = []
-        # Lấy danh sách file .png và sắp xếp theo số trong tên
-        if not os.path.exists(directory):
-            print(f"Cảnh báo: Thư mục {directory} không tồn tại!")
-            return []
-            
-        files = [f for f in os.listdir(directory) if f.endswith('.png')]
-        files.sort(key=get_num) # Sắp xếp theo số 0, 1, 2...
-        
-        for f in files:
-            full_path = os.path.join(directory, f)
-            try:
-                # Load ảnh (không dùng convert_alpha vì display chưa khởi tạo)
-                img = pygame.image.load(full_path)
-                tiles.append(img)
-            except pygame.error as e:
-                print(f"Lỗi khi load {f}: {e}")
-        return tiles
-
-    # Tải cả 2 danh sách độc lập
-    map_tiles = load_from_dir(path_map)
-    collision_tiles = load_from_dir(path_coll)
-    return map_tiles, collision_tiles
-
-def load_map(screen, index_map, map_tiles, position):
-    """
-    Vẽ phần bản đồ nằm trong cửa sổ.
-    Camera theo dõi vị trí nhân vật ở giữa màn hình.
-    """
-    if index_map is None or not map_tiles:
-        return
-
-    # Tính vị trí camera trong thế giới (world coordinates)
-    camera_x = min(max(position.x - SCREEN_WIDTH // 2, 0), MAP_NUMS[0]*TILE_SIZE - SCREEN_WIDTH)
-    camera_y = min(max(position.y - SCREEN_HEIGHT // 2, 0), MAP_NUMS[1]*TILE_SIZE - SCREEN_HEIGHT)
-    
-    for row_idx, row in enumerate(index_map):
-        for col_idx, tile_idx in enumerate(row):
-            # Vị trí tile trong world
-            world_x = col_idx * TILE_SIZE
-            world_y = row_idx * TILE_SIZE
-            
-            # Vị trí trên screen (trừ camera offset)
-            screen_x = world_x - camera_x
-            screen_y = world_y - camera_y
-            
-            # Bỏ qua tiles ngoài màn hình
-            if screen_x + TILE_SIZE < 0 or screen_x >= SCREEN_WIDTH or screen_y + TILE_SIZE < 0 or screen_y >= SCREEN_HEIGHT:
-                continue
-            
-            if isinstance(tile_idx, list):
-                for idx in tile_idx:
-                    if idx < 0 or idx >= len(map_tiles):
-                        continue
-                    if idx != 0:
-                        screen.blit(map_tiles[idx], (screen_x, screen_y))
-            else:
-                if tile_idx < 0 or tile_idx >= len(map_tiles):
-                    continue
-                if tile_idx != 0:
-                    screen.blit(map_tiles[tile_idx], (screen_x, screen_y))
 
 def load_map_from_excel(file_path = "map.csv"):
     game_map = []
@@ -106,14 +34,11 @@ def handle_value(cell : str):
         ds = cell.split(',')
         return list(int(x) for x in ds)
     elif not cell.isnumeric():
-        return 0
+        return cell
     return int(cell)
 def build_background():
     bg = pygame.image.load("assets/background/background_sprite_0.png")
     return pygame.transform.scale(bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
-
-def resolve_yinyang():
-    pass
 
 def get_collison(idx):
     if idx is None or (isinstance(idx, list) and len(idx) == 0):
@@ -127,7 +52,7 @@ def get_collison(idx):
     square = square + [i for i in range (181,187)] + [i for i in range (203,210)]
     square = square + [i for i in range (460,475)] + [487, 685, 686]
     square = square + [i for i in range (779, 782)] + [i for i in range (789, 792)]
-    square = square + [i for i in range (798,803)] + [796, 804, 806, 808, 812, 813]
+    square = square + [i for i in range (798,803)] + [796, 804, 806, 808, 812, 813, 814]
     square = square + [i for i in range (815,820)] + [822, 824, 827, 829, 832, 833, 835, 837, 839]
 
     left_square_tri = [69, 70, 138, 139, 142, 145, 795, 820]
@@ -165,7 +90,32 @@ def get_collison(idx):
     elif idx in half_left:
         return 26
     return 0
+def resolve_yin_yang(text):
+    if text == "gh":
+        return 5
+    if text == "bh":
+        return 6
+    if text == "bv":
+        return 7
+    if text == "gb" or text == "bb":
+        return 4
+    if text == "wh":
+        return 2
+    if text == "wv":
+        return 3
+    if text == "wb":
+        return 0
 
+class Map_animation_handler:
+    def __init__(self):
+        self.huda = []
+        self.stop = []
+        self.nonstop = []
+        self.ora = []
+        self.white_ring = []
+        self.mode = 0
+    def display(self, tile_idx, screen, screen_x, screen_y, is_black):
+        pass
 
 class Collide_direct:
     def __init__(self):
@@ -179,9 +129,13 @@ class Collide_direct:
 class Map:
     def __init__(self):
         self.black = True
+        self.pause = False
+        self.incoming_signal = False
         self.collision_map = [[ 0 for _ in range (MAP_NUMS[0])] for _ in range (MAP_NUMS[1])]
         self.collision_tiles = []
         self.prev_foot_y = 0
+        self.puzzle = Map_animation_handler()
+        self.condition_collision = {}
     def check_collision(self, position, rect : pygame.Rect):
         collide = Collide_direct()
         object_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
@@ -311,12 +265,14 @@ class Map:
         
         if 0 <= row < len(self.collision_map) and 0 <= col < len(self.collision_map[0]):
             target_x = None
-            for idx in range(leastrow, row):
-                tile_type = self.collision_map[idx][col-1]
-                if idx == row - 1:
-                    if (tile_type == 6 or tile_type == 3) and vel.x < 0 and current_block == 1 :
+            for idx in range(leastrow, row + 1):
+                tile_type = self.collision_map[idx][col]
+                if idx == row:
+                    tile_type = self.collision_map[idx - 1][col - 1]
+                    if (tile_type == 6 or tile_type == 3) and vel.x < 0 and self.collision_map[idx][col] in [1, 2 , 6] :
                         position.y = position.y - 1
-                        return self.update_position(position, rect, vel, count)
+                        position.x = position.x - TILE_SIZE/6 
+                        return is_ground, count
                     if (tile_type == 7 or tile_type == 4) and vel.x > 0 and current_block == 1 :
                         position.y = position.y - 1
                         return self.update_position(position, rect, vel, count)
@@ -328,13 +284,13 @@ class Map:
                     if target_x is None:
                         target_x = temp_x
                     else :
-                        target_x = max (target_x, temp_x)
+                        target_x = max(target_x, temp_x)
                 elif tile_type == 25:
                     temp_x = (col + 1) * TILE_SIZE
                     if target_x is None:
                         target_x = temp_x
                     else :
-                        target_x = max (target_x, temp_x)
+                        target_x = max(target_x, temp_x)
                     vel.x = 0
                     modify = True
                 elif tile_type == 26:
@@ -342,11 +298,14 @@ class Map:
                     if target_x is None:
                         target_x = temp_x
                     else :
-                        target_x = max (target_x, temp_x)
+                        target_x = max(target_x, temp_x)
                     vel.x = 0
                     modify = True
             if modify:
-                position.x = target_x
+                print(position.x)
+                print("ok")
+                position.x = max(target_x, position.x)
+                print(position.x)
                 rect.topleft = (int(position.x), int(position.y))
                 self.prev_foot_y = foot_y
         return is_ground, count
@@ -365,14 +324,16 @@ class Map:
             target_x = None
             for idx in range(leastrow, row):
                 
-                tile_type = self.collision_map[idx][col]
+                tile_type = self.collision_map[idx][col+1]
                 if idx == row - 1:
-                    if (tile_type == 7 or tile_type == 4) and vel.x > 0 and current_block == 1 :
+                    tile_type = self.collision_map[idx][col]
+                    if (tile_type == 3 or tile_type == 6) and vel.x > 0 and current_block == 1 :
                         position.y = position.y - 1
                         return self.update_position(position, rect, vel, count)
-                    if (tile_type == 7 or tile_type == 4) and vel.x > 0 and current_block == 1 :
+                    if (tile_type == 7 or tile_type == 4) and vel.x > 0 and self.collision_map[idx+1][col] in [1, 4, 7]:
                         position.y = position.y - 1
-                        return self.update_position(position, rect, vel, count)
+                        position.x = position.x + TILE_SIZE/6 
+                        return is_ground, count
                         
                 if tile_type != 25 and tile_type != 26 and tile_type != 0 :
                     temp_x = col * TILE_SIZE
@@ -487,7 +448,8 @@ class Map:
         strategies = [
             ('top_first', 'left'), ('top_first', 'right'),
             ('bot_first', 'left'), ('bot_first', 'right'),
-            ('left_first', 'top'), ('right_first', 'top')
+            ('left_first', 'top'), ('right_first', 'top'),
+            ('left_first', 'bot'), ('right_first', 'bot'),
         ]
 
         for strategy in strategies:
@@ -501,7 +463,7 @@ class Map:
             
             # Kiểm tra xem sau khi áp dụng, vị trí này có còn "kẹt" (overlap) không
             collision_data = self.check_collision(test_pos, test_rect)
-            if collision_data.overlap == 0:
+            if collision_data.overlap <= 7:
                 dist = original_pos.distance_to(test_pos)
                 results.append((dist, test_pos, is_ground))
 
@@ -518,10 +480,17 @@ class Map:
         # else:
         #     is_ground, countl = self.left_rel(position, rect, vel, current_block, is_ground, count)
         if len(results) > 0:
-            if position.x == results[0][1].x and position.x == results[0][1].y:
+            result = results[0]
+            for res in results:
+                
+                if result[0] == 0 and res[0] > 0 and 0 < position.y - res[1].y < 36 and abs(res[1].x - position.x) < 36:
+                    result = res
+                    is_ground = True
+                    
+            if position.x == result[1].x and position.x == result[1].y:
                 is_ground = True
-            position.x, position.y = results[0][1].x, results[0][1].y 
-            is_ground = results[0][2] or is_ground
+            position.x, position.y = result[1].x, result[1].y
+            is_ground = result[2] or is_ground
         # Cập nhật lại Rect để vẽ (Dùng int để tránh lỗi TypeError)
         rect.topleft = (int(position.x), int(position.y))
         self.prev_foot_y = foot_y
@@ -562,13 +531,145 @@ class Map:
         for i, row in enumerate(index_map):
             for j, cell in enumerate(row):
                 self.collision_map[i][j] = get_collison(cell)
+                if isinstance(cell, str):
+                    dic = self.condition_collision.get(cell, None)
+                    if dic is None:
+                        self.condition_collision[cell]=[[i,j]]
+                    else:
+                        dic += [[i,j]]
+
+    def load_map(self, screen, index_map, map_tiles, position):
+        """
+        Vẽ phần bản đồ nằm trong cửa sổ.
+        Camera theo dõi vị trí nhân vật ở giữa màn hình.
+        """
+        if index_map is None or not map_tiles:
+            return
+        self.set_collision_by_condition()
+        # Tính vị trí camera trong thế giới (world coordinates)
+        camera_x = min(max(position.x - SCREEN_WIDTH // 2, 0), MAP_NUMS[0]*TILE_SIZE - SCREEN_WIDTH)
+        camera_y = min(max(position.y - SCREEN_HEIGHT // 2, 0), MAP_NUMS[1]*TILE_SIZE - SCREEN_HEIGHT)
         
-    
+        for row_idx, row in enumerate(index_map):
+            for col_idx, tile_idx in enumerate(row):
+                # Vị trí tile trong world
+                world_x = col_idx * TILE_SIZE
+                world_y = row_idx * TILE_SIZE
+                
+                # Vị trí trên screen (trừ camera offset)
+                screen_x = world_x - camera_x
+                screen_y = world_y - camera_y
+                
+                # Bỏ qua tiles ngoài màn hình
+                if screen_x + TILE_SIZE < 0 or screen_x >= SCREEN_WIDTH or screen_y + TILE_SIZE < 0 or screen_y >= SCREEN_HEIGHT:
+                    continue
+                
+                if isinstance(tile_idx, list):
+                    for idx in tile_idx:
+                        if idx < 0 or idx >= len(map_tiles):
+                            continue
+                        if idx != 0:
+                            screen.blit(map_tiles[idx], (screen_x, screen_y))
+                elif isinstance(tile_idx, str):
+                    self.puzzle.display(tile_idx, screen, screen_x, screen_y, self.black)
+                else:
+                    if tile_idx < 0 or tile_idx >= len(map_tiles):
+                        continue
+                    if tile_idx != 0:
+                        screen.blit(map_tiles[tile_idx], (screen_x, screen_y))
+
     def load_collision_map(self, screen, collision_tiles, position):
-        load_map(screen, self.collision_map, collision_tiles, position)
+        self.load_map(screen, self.collision_map, collision_tiles, position)
     
-    def build_push_map(self):
-        pass
+    def build_map(self):
+        # 1. Định nghĩa đường dẫn
+        path_map = "assets/map_tiles"
+        path_coll = "assets/collision_tiles"
+        path_huda = "assets/yin_yang/white_or_black_huda"
+        path_stop = "assets/yin_yang/white_or_black"
+        path_nonstop = "assets/yin_yang/white_or_black_nonstop"
+        path_ora = "assets/yin_yang/white_or_black_ora"
+        path_white_ring = "assets/yin_yang/white_ring_effect"
+        # Hàm phụ để lấy số từ tên file (giúp sắp xếp đúng: 0, 1, 2... thay vì 0, 1, 10)
+        def get_num(filename):
+            nums = re.findall(r'\d+', filename)
+            return int(nums[0]) if nums else 0
+
+        def load_from_dir(directory):
+            tiles = []
+            # Lấy danh sách file .png và sắp xếp theo số trong tên
+            if not os.path.exists(directory):
+                print(f"Cảnh báo: Thư mục {directory} không tồn tại!")
+                return []
+                
+            files = [f for f in os.listdir(directory) if f.endswith('.png')]
+            files.sort(key=get_num) # Sắp xếp theo số 0, 1, 2...
+            
+            for f in files:
+                full_path = os.path.join(directory, f)
+                try:
+                    # Load ảnh (không dùng convert_alpha vì display chưa khởi tạo)
+                    img = pygame.image.load(full_path)
+                    tiles.append(img)
+                except pygame.error as e:
+                    print(f"Lỗi khi load {f}: {e}")
+            return tiles
+
+        # Tải cả 2 danh sách độc lập
+        map_tiles = load_from_dir(path_map)
+        collision_tiles = load_from_dir(path_coll)
+
+        self.puzzle.huda = load_from_dir(path_huda)
+        self.puzzle.nonstop = load_from_dir(path_nonstop)
+        self.puzzle.ora = load_from_dir(path_ora)
+        self.puzzle.stop = load_from_dir(path_stop)
+        self.puzzle.white_ring = load_from_dir(path_white_ring)
+        return map_tiles, collision_tiles
+
+    def set_collision_by_condition(self):
+        """
+        Cập nhật collision_map dựa trên key của condition_collision và trạng thái self.black.
+        - Bắt đầu bằng 'g' hoặc kết thúc bằng 'b': Luôn là 1 (Vật cản cố định).
+        - Nếu self.black == True: Bắt đầu bằng 'b' là 1, bắt đầu bằng 'w' là 0.
+        - Nếu self.black == False: Bắt đầu bằng 'b' là 0, bắt đầu bằng 'w' là 1.
+        """
+        for key, coords in self.condition_collision.items():
+            key_str = str(key)
+            collision_value = 0
+
+            # 1. Kiểm tra điều kiện ưu tiên (Cố định)
+            # g: global/ground, b (suffix): block
+            if key_str.startswith('g') or key_str.endswith('b'):
+                collision_value = 1
+            
+            # 2. Kiểm tra điều kiện theo trạng thái Âm - Dương (Black/White)
+            elif self.black:
+                if key_str.startswith('b'):
+                    collision_value = 1
+                elif key_str.startswith('w'):
+                    collision_value = 0
+            else: # self.black == False
+                if key_str.startswith('b'):
+                    collision_value = 0
+                elif key_str.startswith('w'):
+                    collision_value = 1
+
+            # 3. Áp dụng giá trị tính được vào bản đồ tại các tọa độ đã lưu
+            for i, j in coords:
+                if 0 <= i < len(self.collision_map) and 0 <= j < len(self.collision_map[0]):
+                    self.collision_map[i][j] = collision_value
+    def time_stop(self):
+        self.pause = True
+
+    def time_go(self):
+        self.pause = False
+        if self.incoming_signal == True:
+            self.black = not self.black
+            self.incoming_signal = False
+    
+
+
+            
 
     
         
