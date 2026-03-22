@@ -13,7 +13,7 @@ import csv
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
 TILE_SIZE = 36
-MAP_NUMS = (120, 40)
+MAP_NUMS = (140, 40)
 INDEX_MAP = [[0 for _ in range(MAP_NUMS[0])] for _ in range(MAP_NUMS[1])]
 
 

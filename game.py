@@ -276,7 +276,7 @@ class Game:
             pos.y = self.player._pos.y
             
             self.collision_map.load_map(self._screen, self.INDEX_MAP, self.map_tiles, pos)
-            self.collision_map.load_collision_map(self._screen, self.collision_tiles, pos)
+            # self.collision_map.load_collision_map(self._screen, self.collision_tiles, pos)
 
             # camera_x = min(max(pos.x - SCREEN_WIDTH // 2, 0), MAP_NUMS[0]*TILE_SIZE - SCREEN_WIDTH)
             # camera_y = min(max(pos.y - SCREEN_HEIGHT // 2, 0), MAP_NUMS[1]*TILE_SIZE - SCREEN_HEIGHT)
@@ -313,42 +313,6 @@ class Game:
             if self.time_stop:
                 filtered = apply_grayscale(self._screen.copy())
             else:
-                # Update camera position to follow player
-                pos.x = self.player._pos.x
-                pos.y = self.player._pos.y
-                
-            self.collision_map.load_map(self._screen, self.INDEX_MAP, self.map_tiles, pos)
-            self.collision_map.load_collision_map(self._screen, self.collision_tiles, pos)
-
-            # camera_x = min(max(pos.x - SCREEN_WIDTH // 2, 0), MAP_NUMS[0]*TILE_SIZE - SCREEN_WIDTH)
-            # camera_y = min(max(pos.y - SCREEN_HEIGHT // 2, 0), MAP_NUMS[1]*TILE_SIZE - SCREEN_HEIGHT)
-            # x,y = SCREEN_WIDTH//2 , SCREEN_HEIGHT//2
-            # if camera_x == 0:
-            #     x = pos.x
-            # if camera_x == MAP_NUMS[0]*TILE_SIZE - SCREEN_WIDTH:
-            #     x = pos.x%SCREEN_WIDTH
-            # if camera_y == 0:
-            #     y = pos.y
-            # if camera_y == MAP_NUMS[1]*TILE_SIZE - SCREEN_HEIGHT:
-            #     y = pos.y%SCREEN_HEIGHT
-            
-            # pygame.draw.rect(self._screen, (255, 0, 0), (x, y, 40, 40))
-            # -----------------------
-            # DRAW WORLD (no player)
-            # -----------------------
-            self.wisp.draw(self._screen)
-            self.goblin.draw(self._screen, pos)
-            self.crystal.draw(self._screen)
-
-            for knife in self.knives:
-                knife.draw(self._screen)
-
-            # -----------------------
-            # APPLY FILTER SAFELY
-            # -----------------------
-            if self.time_stop:
-                filtered = apply_grayscale(self._screen.copy())
-            else:
                 filtered = self._screen
 
             # -----------------------
@@ -377,9 +341,9 @@ class Game:
             base_y = 25                        # tweak this
 
             hp_crop.blit(hp_bar, (0, 0), (0, 0, hp_width, hp_bar.get_height()))
-            mp_crop.blit(mp_bar, (0, 0), (0, 0, mp_width, mp_bar.get_height()))                      # tweak this
+            mp_crop.blit(mp_bar, (0, 0), (0, 0, mp_width, mp_bar.get_height()))
 
-        # draw HP (top)
+            # draw HP (top)
             filtered.blit(hp_crop, (base_x, base_y))
             value = int(self.player.time_energy)
             digits = list(str(value))
@@ -470,9 +434,9 @@ class Game:
             # -----------------------
             self.player.draw(filtered)
             
-                # -----------------------
-                # SCALE + DISPLAY
-                # -----------------------
+            # -----------------------
+            # SCALE + DISPLAY
+            # -----------------------
             scaled = pygame.transform.scale(
                 filtered,
                 (SCREEN_WIDTH * GAME_SCALE, SCREEN_HEIGHT * GAME_SCALE)
