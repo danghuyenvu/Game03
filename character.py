@@ -235,6 +235,8 @@ class Character:
 
         # taking damage
         self._takingDamage = False
+        self._damageDuration = 0.5
+        self._maxDamageDuration = 0.5
         self._damageLock = False  
         self._knockbackVel = pygame.Vector2(0, 0)
 
@@ -248,8 +250,8 @@ class Character:
     def handleInput(self, keys):
         if self._dead:
             return
-        if self._damageLock:
-            return
+        # if self._damageLock:
+        #     return
 
         # time stop
         stopPressed = keys[self._keys["stop"]]
@@ -393,7 +395,7 @@ class Character:
             return
         if self._takingDamage:
             self.update_damage(dt)
-            return
+            # return
 
         if self.time_stop_toggle_lock > 0:
             self.time_stop_toggle_lock -= dt
@@ -1025,7 +1027,18 @@ class Character:
         )
 
         # draw sprite
-        screen.blit(image, screen_rect)
+        if self._takingDamage or self._dead:
+            tinted = image.copy()
+
+            overlay = pygame.Surface(image.get_size(), pygame.SRCALPHA)
+            overlay.fill((255, 0, 0, 120))
+
+            tinted.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+
+            screen.blit(tinted, screen_rect)
+        else:
+            # Draw normal sprite
+            screen.blit(image, screen_rect)
 
         for effect in self.double_jump_effects:
 
@@ -1337,26 +1350,26 @@ class Character:
         self._currentCombo = None
         self._comboIndex = 0
 
-        dx = self._pos.x - attacker_x
-        direction = 1 if dx > 0 else -1
+        # dx = self._pos.x - attacker_x
+        # direction = 1 if dx > 0 else -1
 
-        self._knockbackVel.x = 150 * direction
-        self._knockbackVel.y = -300
+        # self._knockbackVel.x = 150 * direction
+        # self._knockbackVel.y = -300
 
-        self._grounded = False 
+        # self._grounded = False 
 
-        self.set_animation("player_damage", True)
+        # self.set_animation("player_damage", True)
 
     def update_damage(self, dt):
 
         was_grounded = self._grounded
 
-        # apply gravity to knockback
-        self._knockbackVel.y += GAME_GRAVITY * dt
+        # # apply gravity to knockback
+        # self._knockbackVel.y += GAME_GRAVITY * dt
 
-        # move using knockback ONLY
-        self._pos.x += self._knockbackVel.x * dt
-        self._pos.y += self._knockbackVel.y * dt
+        # # move using knockback ONLY
+        # self._pos.x += self._knockbackVel.x * dt
+        # self._pos.y += self._knockbackVel.y * dt
 
         # update rect
         self._rect.midtop = (int(self._pos.x), int(self._pos.y))
@@ -1364,55 +1377,60 @@ class Character:
         # collision
         self.check_collision()
 
-        just_landed = not was_grounded and self._grounded
+        # just_landed = not was_grounded and self._grounded
 
-        if just_landed:
-            self._knockbackVel.x = 0
+        # if just_landed:
+        #     self._knockbackVel.x = 0
 
-        self.frame_timer += dt
+        # self.frame_timer += dt
 
-        # --- DAMAGE ANIMATION ---
-        if self.current_anim == "player_damage":
+        # # --- DAMAGE ANIMATION ---
+        # if self.current_anim == "player_damage":
 
-            if self.frame_timer >= self.frame_speed:
-                self.frame_timer = 0
+        #     if self.frame_timer >= self.frame_speed:
+        #         self.frame_timer = 0
 
-                # advance until last frame
-                if self.frame_index < len(self.frames) - 1:
-                    self.frame_index += 1
+        #         # advance until last frame
+        #         if self.frame_index < len(self.frames) - 1:
+        #             self.frame_index += 1
 
-                # STAY on last frame
-                else:
-                    self.frame_index = len(self.frames) - 1
+        #         # STAY on last frame
+        #         else:
+        #             # self.frame_index = len(self.frames) - 1
+        #             self.set_animation("player_fall_down", True)
 
-            # when hit ground → switch animation
-            if self._grounded:
-                self.set_animation("player_fall_down", True)
+        #     # # when hit ground → switch animation
+        #     # if self._grounded:
+        #     #     self.set_animation("player_fall_down", True)
 
-        # --- FALL DOWN ANIMATION ---
-        elif self.current_anim == "player_fall_down":
+        # # --- FALL DOWN ANIMATION ---
+        # elif self.current_anim == "player_fall_down":
 
-            if self.frame_timer >= self.frame_speed:
-                self.frame_timer = 0
+        #     if self.frame_timer >= self.frame_speed:
+        #         self.frame_timer = 0
 
-                if self.frame_index < len(self.frames) - 1:
-                    self.frame_index += 1
-                else:
-                    # CHECK DEATH HERE
-                    if self.hp <= 0:
-                        self.set_animation("player_des", True)
-                        self.frame_speed = 0.04
-                        self._takingDamage = False
-                        return
-                    else:
-                        # normal recovery
-                        self._takingDamage = False
-                        self._damageLock = False
+        #         if self.frame_index < len(self.frames) - 1:
+        #             self.frame_index += 1
+        #         else:
+        #             # CHECK DEATH HERE
+        #             if self.hp <= 0:
+        #                 self.set_animation("player_des", True)
+        #                 self.frame_speed = 0.04
+        #                 self._takingDamage = False
+        #                 return
+        #             else:
+        #                 # normal recovery
+        #                 self._takingDamage = False
+        #                 self._damageLock = False
 
-                        if self._grounded:
-                            self.set_animation("idle", True)
-                        else:
-                            self.set_animation("fall", True)
+        #                 if self._grounded:
+        #                     self.set_animation("idle", True)
+        #                 else:
+        #                     self.set_animation("fall", True)
+        self._damageDuration -= dt
+        if self._damageDuration <= 0:
+            self._takingDamage = False
+            self._damageDuration = self._maxDamageDuration
 
         self._image = self.frames[self.frame_index]
 
@@ -1420,7 +1438,8 @@ class Character:
         # prevent damage spam
         if self._takingDamage:
             return
-
+        if self._dead:
+            return
         # reduce HP
         self.hp -= damage
         if self.hp < 0:
@@ -1428,6 +1447,10 @@ class Character:
 
         if self.hp <= 0:
             self._dead = True
+            self.set_animation("player_des", True)
+            self.frame_speed = 0.04
+            self._takingDamage = False
+            return
 
         # call existing damage logic
         self.take_damage(attacker_x)

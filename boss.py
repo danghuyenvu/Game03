@@ -257,8 +257,7 @@ class Boss:
         player_hurtbox = self.player.get_hurtbox_rect()
 
         if self.hurtbox.colliderect(player_hurtbox):
-            # self.player.apply_damage(10, self.hurtbox.centerx)
-            print("you suck lol")
+            self.player.apply_damage(10, self.hurtbox.centerx)
 
         if self.is_hit(knives):
             self._hit_flash = True
