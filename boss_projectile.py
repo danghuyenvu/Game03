@@ -110,8 +110,13 @@ class SmokeColumn:
         self.hitbox = self.rect.copy()
 
         if self.hitbox and self.hitbox.colliderect(player.get_hurtbox_rect()):
-            # player.apply_damage(0, self.rect.centerx)
-            print("smoked")
+            player.time_energy -= 8 * dt
+
+    def timestop_update(self, dt, player):
+        self.hitbox = self.rect.copy()
+
+        if self.hitbox and self.hitbox.colliderect(player.get_hurtbox_rect()):
+            player.time_energy -= 8 * dt
     
     def draw(self, screen, camera_x, camera_y):
         frame = self.frames[self.frame_index]
@@ -272,13 +277,11 @@ class UndershotProjectile:
         if self.state == "laser":
             self.hitbox = get_tight_hitbox(self.image, self.rect, "midbottom")
             if self.hitbox.colliderect(player.get_hurtbox_rect()):
-                # player.apply_damage(20, self.hitbox.centerx)
-                print("lasered")
+                player.apply_damage(20, self.hitbox.centerx)
         else:
             self.hitbox = get_tight_hitbox(self.image, self.rect, "center")
             if self.hitbox.colliderect(player.get_hurtbox_rect()):
-                # player.apply_damage(10, self.hitbox.centerx)
-                print("boomed")
+                player.apply_damage(10, self.hitbox.centerx)
 
 
     def _become_laser(self):
@@ -471,8 +474,7 @@ class ShotProjectile:
 
         self.hitbox = get_tight_hitbox(self.image, self.rect, "center")
         if self.hitbox.colliderect(player.get_hurtbox_rect()):
-            # player.apply_damage(15, self.hitbox.centerx)
-            print("shot")
+            player.apply_damage(15, self.hitbox.centerx)
             self.alive = False
 
     def draw(self, screen, camera_x, camera_y):
