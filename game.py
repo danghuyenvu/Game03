@@ -10,7 +10,7 @@ from build import *
 
 class Position:
     def __init__(self):
-        self.x = 36*35
+        self.x = 36*36
         self.y = 360
 
 pos = Position()
