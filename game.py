@@ -84,6 +84,7 @@ class Game:
         self.loader.load_animation("big_bomb_effect", "assets/sprite/big_bomb_effect")
         self.loader.load_animation("mp_item", "assets/sprite/mpup_sprite")
         self.loader.load_animation("hp_item", "assets/sprite/hpup_sprite")
+        self.loader.load_animation("huda_fire", "assets/sprite/huda_fire")
 
         # UI
         self.loader.load_image("gauge", "assets/sprite/gauge_sprite/gauge_sprite_1.png")
