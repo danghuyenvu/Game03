@@ -41,6 +41,7 @@ class Game:
         self.wisp = None   # store animation frames
         self.goblin = None
         self.boss = None
+        self.crystal = None
         self.executor = ThreadPoolExecutor(max_workers=4)
         self.firegate = None
 
@@ -99,8 +100,8 @@ class Game:
         # item and effect
         self.loader.load_animation("crystal", "assets/sprite/crystal_sprite")
         self.loader.load_animation("big_bomb_effect", "assets/sprite/big_bomb_effect")
-        self.loader.load_animation("mp_item", "assets/sprite/mpup_sprite")
-        self.loader.load_animation("hp_item", "assets/sprite/hpup_sprite")
+        self.loader.load_image("mp_item", "assets/sprite/mpup_sprite/mpup_sprite_0.png")
+        self.loader.load_image("hp_item", "assets/sprite/hpup_sprite/hpup_sprite_0.png")
         self.loader.load_animation("huda_fire", "assets/sprite/huda_fire")
         self.loader.load_image("magatama", "assets/sprite/item_magatama/item_magatama_0.png")
 
@@ -182,7 +183,7 @@ class Game:
         self.wisp = list(self.executor.map(lambda x: Wisp(x, self.loader), WISP_POS))
         self.goblin = list(self.executor.map(lambda x: Goblin(self.loader, x), GOB_INIT_POS))
 
-        self.crystal = Crystal(self.loader, 1)
+        self.crystal = list(self.executor.map(lambda x: Crystal(self.loader, x), CRYSTAL_POS))
 
         # create entities AFTER assets exist
         self.player = Character(self.loader, self)
@@ -270,7 +271,7 @@ class Game:
                 self.boss.update(dt, self.player._pos, self.knives)
             list(self.executor.map(lambda x: x.update(dt, self.player, self.knives), self.wisp))
             list(self.executor.map(lambda x: x.update(dt, self.player, self.knives), self.goblin))
-            self.crystal.update(dt, self.player._pos, self.knives)
+            list(self.executor.map(lambda x: x.update(dt, self.player, self.knives), self.crystal))
 
             # magatamas
             for m in self.magatamas:
@@ -353,7 +354,7 @@ class Game:
 
             list(self.executor.map(lambda x: x.draw(self._screen, pos), self.wisp))
             list(self.executor.map(lambda x: x.draw(self._screen, pos), self.goblin))
-            self.crystal.draw(self._screen, pos)
+            list(self.executor.map(lambda x: x.draw(self._screen, pos), self.crystal))
             # draw fire gate
             self.fire_gate.draw(self._screen, self.camera_x, self.camera_y)
             for m in self.magatamas:

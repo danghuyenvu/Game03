@@ -360,7 +360,6 @@ class Character:
     # -----------------------
 
     def update(self, dt):
-        print(self._pos.y, self._pos.x)
         # 2nd jump effect 2
         for effect in self.double_jump_effects[:]:
             effect["timer"] += dt
@@ -938,8 +937,6 @@ class Character:
         if self.player_sliding:
             collision_pos = pygame.Vector2(collision_pos.x, collision_pos.y + self._rect.height/2)
             rect = pygame.Rect(collision_pos.x, collision_pos.y, rect.width, self._rect.height/2)
-            print(collision_pos.y)
-            print(self._rect.height/2)
         self._grounded, _ = self.map.update_position(collision_pos, rect, self._vel)
         self.map.check_pressing(collision_pos, rect)
 
