@@ -9,6 +9,7 @@ from asset_loader import AssetLoader
 import pygame
 import sys
 from build import *
+from concurrent.futures import ThreadPoolExecutor
 
 class Position:
     def __init__(self):
@@ -40,6 +41,7 @@ class Game:
         self.wisp = None   # store animation frames
         self.goblin = None
         self.boss = None
+        self.executor = ThreadPoolExecutor(max_workers=4)
         self.firegate = None
 
         self.boss_spawned = False
@@ -177,8 +179,8 @@ class Game:
         # pygame.mixer.music.play(-1)   # -1 = loop forever
         self.menu = Menu(loader=self.loader)
         # retrieve animation frames
-        self.wisp = Wisp(0, 0, self.loader)
-        self.goblin = Goblin(300, 1000, self.loader)
+        self.wisp = list(self.executor.map(lambda x: Wisp(x, self.loader), WISP_POS))
+        self.goblin = list(self.executor.map(lambda x: Goblin(self.loader, x), GOB_INIT_POS))
 
         self.crystal = Crystal(self.loader, 1)
 
@@ -266,8 +268,8 @@ class Game:
         if not self.time_stop:
             if self.boss_spawned:
                 self.boss.update(dt, self.player._pos, self.knives)
-            self.wisp.update(dt, self.player._pos, self.knives)
-            self.goblin.update(dt, self.player, self.knives)
+            list(self.executor.map(lambda x: x.update(dt, self.player, self.knives), self.wisp))
+            list(self.executor.map(lambda x: x.update(dt, self.player, self.knives), self.goblin))
             self.crystal.update(dt, self.player._pos, self.knives)
 
             # magatamas
@@ -300,7 +302,7 @@ class Game:
     def check_collision(self):
 
         self.player.check_collision()
-        self.goblin.check_collision(self.collision_map)
+        list(self.executor.map(lambda x: x.check_collision(), self.goblin))
 
     # -----------------------
     # DRAW
@@ -349,9 +351,9 @@ class Game:
             self.camera_x = max(0, min(self.camera_x, map_width  - SCREEN_WIDTH))
             self.camera_y = max(0, min(self.camera_y, map_height - SCREEN_HEIGHT))
 
-            self.wisp.draw(self._screen)
-            self.goblin.draw(self._screen, pos)
-            self.crystal.draw(self._screen)
+            list(self.executor.map(lambda x: x.draw(self._screen, pos), self.wisp))
+            list(self.executor.map(lambda x: x.draw(self._screen, pos), self.goblin))
+            self.crystal.draw(self._screen, pos)
             # draw fire gate
             self.fire_gate.draw(self._screen, self.camera_x, self.camera_y)
             for m in self.magatamas:
@@ -520,7 +522,6 @@ class Game:
     def play(self):
         while True:
             dt = self._clock.tick(FPS) / 1000.0
-
             self.handleInput()
             if not self.in_menu:
                 self.update(dt)
