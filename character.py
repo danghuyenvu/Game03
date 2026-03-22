@@ -825,10 +825,16 @@ class Character:
                 else:
                     # animation finished → stop sliding
                     self.player_sliding = False
-                    if self._inputDown:
-                        self.set_animation("crouch")
+                    if self._grounded:
+                        if self._inputDown:
+                            self.set_animation("crouch")
+                        else:
+                            self.set_animation("idle")
                     else:
-                        self.set_animation("idle")
+                        if self._keys["jump"]:
+                            self.set_animation("glide")
+                        else:    
+                            self.set_animation("falling")
 
             elif (
                 self.current_anim.startswith(("action", "run_attack"))
@@ -1008,6 +1014,7 @@ class Character:
 
         # draw sprite
         screen.blit(image, screen_rect)
+        print(screen_rect)
 
         for effect in self.double_jump_effects:
 
